@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSE Simulator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#faf6ef; --hdr:#2d2016; --tool:#f0e8d8; --border:#e0d5c4;
+  --accent:#c8832a; --bad:#c0392b; --good:#27795a;
+  --text:#2d1a00; --muted:#9a8060; --mono:#a09080; --grid:#e8dcc8;
+  --head-font:'Fraunces',Georgia,serif;
+  --mono-font:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  --body-font:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--body-font);overflow-x:hidden}
+body{min-height:100vh;line-height:1.45;font-size:17px;font-weight:500}
+button{font-family:inherit;cursor:pointer;color:inherit}
+button:disabled,input:disabled{cursor:not-allowed;opacity:.55}
+.wrap{max-width:1240px;margin:0 auto;padding:0 16px}
+
+/* header */
+header{background:var(--hdr);color:#f5ecd8}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.brand{font-family:var(--head-font);font-weight:800;font-size:30px;letter-spacing:.2px}
+.brand b{color:var(--accent)}
+.brand span{color:#f5ecd8;font-weight:600;margin-left:8px}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-family:var(--mono-font);font-size:13px;font-weight:700;padding:6px 12px;border-radius:4px;border:1px solid;letter-spacing:.3px;white-space:nowrap}
+.badge.ok{background:#d4edd8;color:#2a6b35;border-color:#a8d8b0}
+.badge.lag{background:#fdecc8;color:#8a5010;border-color:#f5c870}
+
+/* sections */
+.sec-label{font-family:var(--head-font);font-size:22px;font-weight:700;color:var(--text);margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+.workloads{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.wl{text-align:left;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0;transition:background .15s,border-color .15s}
+.wl:hover:not(:disabled){background:#f6efe0}
+.wl.sel{border-left-color:var(--accent);background:rgba(200,131,42,.09);border-color:#dcc49c;border-left-color:var(--accent)}
+.wl h3{font-family:var(--head-font);font-size:21px;font-weight:700}
+.wl p{font-size:14.5px;color:#7a6548;line-height:1.35;font-weight:500}
+.wl svg{width:100%;height:28px;margin-top:2px}
+.wl svg polyline{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.wl:not(.sel) svg polyline{stroke:#b8a888}
+
+/* toolbar */
+.toolbar{background:var(--tool);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:18px}
+.toolbar .wrap{padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:1fr 1fr auto;gap:16px 24px;align-items:start}
+.tgroup{min-width:0}
+.tlabel{font-family:var(--head-font);font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg);max-width:100%}
+.seg button{background:transparent;border:0;border-right:1px solid var(--border);padding:9px 14px;font-family:var(--mono-font);font-size:14px;font-weight:500;color:#5a4128}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+.seg.mode{margin-bottom:8px}
+.seg.mode button{font-size:13px;padding:6px 12px}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{border:1px solid var(--border);background:var(--bg);border-radius:999px;padding:8px 16px;font-family:var(--mono-font);font-size:14px;font-weight:500;color:#5a4128}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.hint{font-size:13.5px;color:#7a6548;margin-top:8px}
+.slider-row{display:flex;align-items:center;gap:12px}
+.slider-row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.readout{font-family:var(--mono-font);font-size:16px;font-weight:700;color:var(--accent);white-space:nowrap}
+.runcol{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:190px}
+.run{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:13px 20px;font-family:var(--head-font);font-weight:800;font-size:19px;letter-spacing:.2px}
+.run:hover{filter:brightness(1.07)}
+.run.stop{background:var(--bad)}
+.clock{font-family:var(--mono-font);font-size:20px;font-weight:700;background:#dbe6ef;color:#34566e;border:1px solid #bfd0de;border-radius:4px;padding:5px 10px;text-align:center}
+.panel{position:relative}
+.cbox{cursor:zoom-in}
+.expand{position:absolute;top:8px;right:10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;width:30px;height:28px;font-size:16px;line-height:1;color:#7a6548}
+.expand:hover{border-color:var(--accent);color:var(--accent)}
+.focus{position:fixed;inset:0;z-index:60;background:rgba(45,32,22,.62);display:flex;align-items:center;justify-content:center;padding:16px}
+.fmodal{background:var(--bg);border:1px solid var(--border);border-top:4px solid var(--accent);border-radius:8px;width:min(1100px,100%);box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.fhead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.fhead h3{font-family:var(--head-font);font-size:24px;font-weight:800}
+.fhead button{background:var(--bg);border:1px solid var(--accent);color:#8a5010;border-radius:6px;padding:8px 14px;font-family:var(--mono-font);font-size:13px;font-weight:600;white-space:nowrap}
+.fbox{position:relative;height:min(68vh,600px);margin:10px 14px 4px;cursor:zoom-out}
+.fbox canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.fnote{font-size:13px;color:#7a6548;padding:0 16px 12px}
+#tip{position:fixed;left:0;top:0;z-index:300;max-width:300px;background:#2d2016;color:#f5ecd8;font-family:var(--body-font);font-size:14px;font-weight:500;line-height:1.4;padding:9px 12px;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+h4[data-tip],.tlabel[data-tip]{cursor:help}
+h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;color:var(--accent);font-family:var(--body-font);font-weight:600}
+.tlabel{justify-content:flex-start}
+.pr>span:first-child[data-tip],.kpi small[data-tip]{cursor:help;text-decoration:underline dotted #b8a888;text-underline-offset:4px}
+.run.pause{background:#6a5238}
+#pausedBox{display:flex;flex-direction:column;gap:8px}
+.reset{background:var(--bg);border:1px solid var(--bad);color:var(--bad);border-radius:6px;padding:9px 12px;font-family:var(--head-font);font-weight:700;font-size:16px}
+.reset:hover{background:rgba(192,57,43,.08)}
+.loader{position:fixed;inset:0;z-index:100;background:rgba(250,246,239,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;text-align:center;opacity:0;visibility:hidden;transition:opacity .45s ease,visibility 0s linear .45s}
+.loader.show{opacity:1;visibility:visible;transition:opacity .45s ease,visibility 0s}
+.spinner{width:64px;height:64px;border-radius:50%;border:5px solid var(--border);border-top-color:var(--accent);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader .lt{font-family:var(--head-font);font-weight:800;font-size:30px;color:var(--text)}
+.loader .lt b{color:var(--accent)}
+.loader .ls{font-family:var(--mono-font);font-size:14px;color:#7a6548;min-height:1.5em}
+.lbar{width:min(280px,70vw);height:5px;background:#e6dac5;border-radius:3px;overflow:hidden}
+.lbar i{display:block;height:100%;width:0;background:var(--accent)}
+.exp{display:flex;gap:8px}
+.exp button{flex:1;background:var(--bg);border:1px solid var(--accent);color:#8a5010;border-radius:6px;padding:8px 10px;font-family:var(--mono-font);font-size:13px;font-weight:600}
+.exp button:hover:not(:disabled){background:rgba(200,131,42,.12)}
+.progress{height:6px;background:#e6dac5;border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .45s linear}
+[hidden]{display:none!important}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;min-width:0}
+.kpi h4{font-family:var(--head-font);font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
+.kpi .row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-family:var(--mono-font)}
+.kpi .row small{font-size:13px;font-weight:600;color:#7a6548}
+.kpi .row b{font-size:clamp(22px,3vw,34px);font-weight:700}
+.kpi .bad{color:var(--bad)} .kpi .good{color:var(--good)} .kpi .amb{color:var(--accent)}
+.kpi .note{font-size:13px;color:#7a6548;margin-top:6px}
+
+/* pod panel */
+.pods{background:var(--bg);border:1px solid var(--border);border-radius:6px;display:grid;grid-template-columns:1fr 1fr}
+.pcol{padding:12px 14px;min-width:0}
+.pcol+.pcol{border-left:1px solid var(--border)}
+.pcol h4{font-family:var(--head-font);font-size:22px;font-weight:800;margin-bottom:8px}
+.pcol.h h4{color:var(--bad)} .pcol.p h4{color:var(--accent)}
+.pr{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono-font);font-size:15px;padding:5px 0;border-top:1px dashed var(--grid)}
+.pr:first-of-type{border-top:0}
+.pr span:first-child{color:#7a6548}
+.pr span:last-child{text-align:right;font-weight:700;overflow-wrap:anywhere}
+.up{color:var(--bad)} .down{color:var(--good)} .hold{color:#6a5238}
+
+/* charts */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-bottom:30px}
+.panel{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px 8px;min-width:0}
+.panel h4{font-family:var(--head-font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
+.cbox{position:relative;height:220px}
+.cbox canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+
+/* summary */
+.overlay{position:fixed;inset:0;background:rgba(45,32,22,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;overflow-y:auto}
+.modal{background:var(--bg);border:1px solid var(--border);border-top:4px solid var(--accent);border-radius:8px;max-width:520px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.modal header{background:none;color:var(--text);padding:16px 18px 6px}
+.modal h2{font-family:var(--head-font);font-size:26px;font-weight:800}
+.modal .sub{font-family:var(--mono-font);font-size:14px;color:#7a6548;margin-top:2px}
+.modal table{width:calc(100% - 36px);margin:10px 18px;border-collapse:collapse;font-family:var(--mono-font);font-size:15px}
+.modal th{font-weight:600;color:var(--muted);text-align:right;padding:6px 0;border-bottom:1px solid var(--border)}
+.modal th:first-child{text-align:left}
+.modal td{padding:7px 0;border-bottom:1px dashed var(--grid);text-align:right}
+.modal td:first-child{text-align:left;color:#6a5238}
+.modal td.h{color:var(--bad);font-weight:600} .modal td.p{color:var(--good);font-weight:600} .modal td.a{color:var(--accent);font-weight:600}
+.modal .verdict{margin:6px 18px 12px;padding:10px 12px;background:#e6f1ea;border:1px solid #bddac8;color:#1f5e44;border-radius:6px;font-weight:700;font-size:17px}
+.modal .acts{display:flex;gap:10px;padding:0 18px 18px;flex-wrap:wrap}
+.modal .acts button{flex:1;min-width:130px;padding:11px 14px;border-radius:6px;font-family:var(--head-font);font-weight:700;font-size:16px}
+.btn-a{background:var(--accent);color:#fff;border:0}
+.btn-b{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+
+/* responsive */
+@media (max-width:980px){
+  .workloads{grid-template-columns:1fr 1fr}
+  .toolbar .wrap{grid-template-columns:1fr 1fr}
+  .runcol{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;align-items:center}
+  .runcol .run{flex:1;min-width:160px}
+  #pausedBox{flex:1 1 100%}
+  .kpis{grid-template-columns:1fr 1fr}
+}
+@media (max-width:760px){
+  .charts{grid-template-columns:1fr}
+}
+@media (max-width:600px){
+  .toolbar .wrap{grid-template-columns:1fr}
+  .pods{grid-template-columns:1fr}
+  .pcol+.pcol{border-left:0;border-top:1px solid var(--border)}
+  .seg{display:flex;width:100%}
+  .seg button{flex:1;padding:8px 4px}
+  .cbox{height:200px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand"><b>PSE</b><span>Simulator</span></div>
+    <div class="badges">
+      <div class="badge ok">PSE ACTIVE</div>
+      <div class="badge lag" id="lagBadge">HPA LAG: 0s</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="sec-label">Workload</div>
+  <div class="workloads" id="workloads" role="group" aria-label="Workload"></div>
+</div>
+
+<div class="toolbar">
+  <div class="wrap">
+    <div class="tgroup">
+      <div class="tlabel">Intensity</div>
+      <div class="seg mode" id="modeSeg">
+        <button type="button" data-mode="preset" class="on" data-lock>Preset levels</button>
+        <button type="button" data-mode="manual" data-lock>Manual</button>
+      </div>
+      <div id="presetBox">
+        <div class="seg" id="presetSeg">
+          <button type="button" data-v="25" data-lock>Low</button>
+          <button type="button" data-v="50" class="on" data-lock>Medium</button>
+          <button type="button" data-v="75" data-lock>High</button>
+          <button type="button" data-v="100" data-lock>Extreme</button>
+        </div>
+      </div>
+      <div id="manualBox" hidden>
+        <div class="slider-row">
+          <input type="range" id="slider" min="1" max="100" value="50" data-lock aria-label="Intensity">
+          <span class="readout" id="readout">Intensity: 50%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tgroup">
+      <div class="tlabel">Run duration</div>
+      <div class="pills" id="durPills">
+        <button type="button" class="pill on" data-d="10" data-lock>10 min</button>
+        <button type="button" class="pill" data-d="15" data-lock>15 min</button>
+        <button type="button" class="pill" data-d="60" data-lock>1 hour</button>
+        <button type="button" class="pill" data-d="inf" data-lock>&infin; Infinite</button>
+      </div>
+      <div class="hint" id="durHint">Real-time playback: this run takes 10 minutes.</div>
+    </div>
+
+    <div class="runcol">
+      <button type="button" class="run" id="runBtn">&#9654; Run Simulation</button>
+      <div class="clock" id="clock">00:00</div>
+      <div class="progress" id="progress"><i id="progressFill"></i></div>
+      <div id="pausedBox" hidden>
+        <button type="button" class="reset" id="resetBtn">&#8634; Reset</button>
+        <div class="exp">
+          <button type="button" id="expCsv">&darr; CSV</button>
+          <button type="button" id="expPdf">&darr; PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="sec-label">Key metrics</div>
+  <div class="kpis">
+    <div class="kpi"><h4>SLO Violation Rate</h4>
+      <div class="row"><small>HPA</small><b class="bad" id="kSloH">0.0%</b></div>
+      <div class="row"><small>PSE</small><b class="good" id="kSloP">0.0%</b></div>
+      <div class="note">requests over SLO</div></div>
+    <div class="kpi"><h4>P99 Latency Peak</h4>
+      <div class="row"><small>HPA</small><b class="bad" id="kP99H">&mdash;</b></div>
+      <div class="row"><small>PSE</small><b class="good" id="kP99P">&mdash;</b></div>
+      <div class="note">SLO threshold 200ms</div></div>
+    <div class="kpi"><h4>Pods Provisioned</h4>
+      <div class="row"><small>HPA</small><b class="bad" id="kPodH">&mdash;</b></div>
+      <div class="row"><small>PSE</small><b class="good" id="kPodP">&mdash;</b></div>
+      <div class="note">peak pod count</div></div>
+    <div class="kpi"><h4>Resource Efficiency</h4>
+      <div class="row"><small>PSE vs HPA</small><b class="amb" id="kEff">&mdash;</b></div>
+      <div class="note">pod-seconds saved</div></div>
+  </div>
+
+  <div class="sec-label">Autoscaler activity</div>
+  <div class="pods">
+    <div class="pcol h"><h4>HPA</h4>
+      <div class="pr"><span>Pods active</span><span id="hPods">&mdash;</span></div>
+      <div class="pr"><span>Scaling</span><span id="hScale" class="hold">&mdash;</span></div>
+      <div class="pr"><span>Decision</span><span id="hDec">&mdash;</span></div>
+      <div class="pr"><span>Lag</span><span id="hLag">&mdash;</span></div>
+    </div>
+    <div class="pcol p"><h4>PSE</h4>
+      <div class="pr"><span>Pods active</span><span id="pPods">&mdash;</span></div>
+      <div class="pr"><span>Scaling</span><span id="pScale" class="hold">&mdash;</span></div>
+      <div class="pr"><span>Decision</span><span id="pDec">&mdash;</span></div>
+      <div class="pr"><span>Lead time</span><span id="pLead">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="sec-label">Live telemetry</div>
+  <div class="charts">
+    <div class="panel"><h4>Request rate (RPS)</h4><div class="cbox"><canvas id="c1"></canvas></div></div>
+    <div class="panel"><h4>Replicas</h4><div class="cbox"><canvas id="c2"></canvas></div></div>
+    <div class="panel"><h4>P99 latency (ms)</h4><div class="cbox"><canvas id="c3"></canvas></div></div>
+    <div class="panel"><h4>Cumulative SLO violations</h4><div class="cbox"><canvas id="c4"></canvas></div></div>
+  </div>
+</div>
+
+<div class="focus" id="focus" hidden role="dialog" aria-modal="true" aria-labelledby="fTitle">
+  <div class="fmodal">
+    <div class="fhead">
+      <h3 id="fTitle">Chart</h3>
+      <button type="button" id="fClose">&#10005; Minimize</button>
+    </div>
+    <div class="fbox"><canvas id="fCanvas"></canvas></div>
+    <div class="fnote">Live view. Click the chart, press Esc, or use Minimize to go back. Hover the lines for exact values.</div>
+  </div>
+</div>
+
+<div class="loader show" id="loader" role="status" aria-live="polite">
+  <div class="spinner"></div>
+  <div class="lt"><b>PSE</b> Simulator</div>
+  <div class="ls" id="loaderStep">Loading dashboard&hellip;</div>
+  <div class="lbar"><i id="loaderBar"></i></div>
+</div>
+
+<div class="overlay" id="summary" hidden role="dialog" aria-modal="true" aria-labelledby="sumTitle">
+  <div class="modal">
+    <header>
+      <h2 id="sumTitle">Simulation Complete</h2>
+      <div class="sub" id="sumSub"></div>
+    </header>
+    <table>
+      <thead><tr><th>Metric</th><th>HPA</th><th>PSE</th></tr></thead>
+      <tbody id="sumBody"></tbody>
+    </table>
+    <div class="verdict" id="sumVerdict"></div>
+    <div class="acts">
+      <button type="button" class="btn-a" id="sumAgain">&#9654; Run Again</button>
+      <button type="button" class="btn-b" id="sumCsv">&darr; Sheet (CSV)</button>
+      <button type="button" class="btn-b" id="sumPdf">&darr; PDF report</button>
+      <button type="button" class="btn-b" id="sumClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- constants ---------- */
+  var TICK_MS = 500, TICK_S = 0.5;
+  var POD_CAP = 45;            // RPS one pod can serve
+  var HPA_HEAD = 1.15;         // HPA target headroom
+  var PSE_HEAD = 1.05;         // PSE tight headroom
+  var HPA_STAB_S = 90;         // HPA scale-down stabilisation window
+  var PSE_LEAD_S = 90;         // how far ahead PSE provisions
+  var FORECAST_S = 180;        // LSTM horizon (3 min)
+  var LOOP_S = 180;            // infinite mode: one loop of the workload pattern
+  var SLO_MS = 200;
+  var DURS = { '10': 600, '15': 900, '60': 3600, 'inf': Infinity };
+  var DUR_HINT = {
+    '10': 'Real-time playback: this run takes 10 minutes.',
+    '15': 'Real-time playback: this run takes 15 minutes.',
+    '60': 'Real-time playback: this run takes 1 hour.',
+    'inf': 'Runs until you stop it, looping the pattern with fresh noise.'
+  };
+
+  var WL = {
+    W1: { name: 'Diurnal', desc: 'Morning rise, afternoon peak, evening drop',
+      tip: 'Diurnal: traffic follows a daily cycle, rising, peaking mid-run, then falling away. Tests how smoothly each autoscaler tracks a gradual wave of demand.' },
+    W2: { name: 'Flash Crowd', desc: 'Sudden spike then rapid drop',
+      tip: 'Flash crowd: a sudden surge (a viral link or a sale) that spikes and drops fast. Reactive scaling struggles most here because it cannot respond until the spike is already under way.' },
+    W3: { name: 'Gradual Ramp', desc: 'Steady linear increase over the window',
+      tip: 'Gradual ramp: load climbs steadily across the whole run. A reactive autoscaler is always one step behind the rising demand.' },
+    W4: { name: 'Constant', desc: 'Stable baseline with minor jitter',
+      tip: 'Constant: a steady baseline with only small random fluctuations and occasional short bursts. Shows the gap when there is no big trend to forecast.' }
+  };
+  var BASE = {
+    W1: function (t) { return 0.15 + 0.85 * Math.pow(Math.sin(Math.PI * t), 1.4); },
+    W2: function (t) { var s = Math.exp(-Math.pow((t - 0.35) / 0.08, 2)); return 0.1 + 0.9 * s; },
+    W3: function (t) { return 0.1 + 0.85 * Math.pow(t, 0.9); },
+    W4: function () { return 0.55; }
+  };
+  var THESIS = { W1: [9.1, 2.2], W2: [14.3, 3.8], W3: [7.6, 1.9], W4: [4.2, 1.1] }; // [HPA, PSE] %
+
+  /* ---------- helpers ---------- */
+  function $(id) { return document.getElementById(id); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtClock(sec) { var s = Math.floor(sec); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); }
+  function makePRNG(seed) {
+    var s = seed >>> 0;
+    return function () {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+  function gauss(rand, mean, std) {
+    var u1 = Math.max(rand(), 1e-12), u2 = rand();
+    return mean + Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * std;
+  }
+  function vary(rand, v, pct) { return v * (1 + (rand() * 2 - 1) * pct); }
+
+  /* ---------- UI state ---------- */
+  var sel = { wl: 'W1', mode: 'preset', preset: 50, manual: 50, dur: '10' };
+  var S = null, timer = null;
+
+  /* ---------- workload cards ---------- */
+  function sparkPoints(id) {
+    var pts = [], n = 40;
+    for (var i = 0; i <= n; i++) {
+      var t = i / n, v = BASE[id](t);
+      if (id === 'W4') v += Math.sin(i * 12.9898) * 0.04 + Math.sin(i * 4.1) * 0.03;
+      pts.push((i / n * 100).toFixed(1) + ',' + (26 - clamp(v, 0, 1) * 22).toFixed(1));
+    }
+    return pts.join(' ');
+  }
+  var wlBox = $('workloads');
+  Object.keys(WL).forEach(function (id) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'wl' + (id === sel.wl ? ' sel' : ''); b.dataset.id = id;
+    b.setAttribute('data-lock', '');
+    b.setAttribute('data-tip', WL[id].tip);
+    b.setAttribute('aria-pressed', id === sel.wl ? 'true' : 'false');
+    b.innerHTML = '<h3>' + WL[id].name + '</h3><p>' + WL[id].desc + '</p>' +
+      '<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + sparkPoints(id) + '"/></svg>';
+    b.addEventListener('click', function () {
+      sel.wl = id;
+      wlBox.querySelectorAll('.wl').forEach(function (x) {
+        var on = x.dataset.id === id; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    });
+    wlBox.appendChild(b);
+  });
+
+  /* ---------- intensity controls ---------- */
+  function intensity() { return sel.mode === 'preset' ? sel.preset : sel.manual; }
+  $('modeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    sel.mode = b.dataset.mode;
+    this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    $('presetBox').hidden = sel.mode !== 'preset';
+    $('manualBox').hidden = sel.mode !== 'manual';
+    if (sel.mode === 'manual') { $('slider').value = sel.preset; sel.manual = sel.preset; updateReadout(); }
+  });
+  $('presetSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    sel.preset = +b.dataset.v;
+    this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+  });
+  function updateReadout() { $('readout').textContent = 'Intensity: ' + sel.manual + '%'; }
+  $('slider').addEventListener('input', function () { sel.manual = +this.value; updateReadout(); });
+
+  $('durPills').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    sel.dur = b.dataset.d;
+    this.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    $('durHint').textContent = DUR_HINT[sel.dur];
+  });
+
+  /* ---------- charts ---------- */
+  var CH = { labels: [], rps: [], hpaP: [], pseP: [], hpaL: [], pseL: [], slo: [], hpaV: [], pseV: [] };
+  var COL = { rps: '#b8a888', hpa: '#c0392b', pse: '#c8832a', good: '#27795a', slo: '#c8832a' };
+  var charts = [];
+
+  function mkChart(id, datasets, yOpts, legendTips) {
+    var ctx = $(id).getContext('2d');
+    var c = new Chart(ctx, {
+      type: 'line',
+      data: { labels: CH.labels, datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          title: { display: false },
+          legend: { position: 'top', align: 'end', onHover: function (e, item) { var t = legendTips && legendTips[item.text]; if (t) showTipAt(t, e.native.clientX, e.native.clientY); }, onLeave: function () { hideTip(); }, onClick: function () {}, labels: { boxWidth: 16, boxHeight: 2, padding: 10, color: '#7a6548', font: { family: "'IBM Plex Mono', monospace", size: 12 } } },
+          tooltip: { titleFont: { family: "'IBM Plex Mono', monospace", size: 13 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 13 } }
+        },
+        scales: {
+          x: { grid: { color: '#e8dcc8' }, ticks: { color: '#a09080', maxTicksLimit: 6, maxRotation: 0, autoSkip: true, font: { family: "'IBM Plex Mono', monospace", size: 12 } } },
+          y: Object.assign({ beginAtZero: true, grid: { color: '#e8dcc8' }, ticks: { color: '#a09080', font: { family: "'IBM Plex Mono', monospace", size: 12 } } }, yOpts || {})
+        }
+      }
+    });
+    c._def = { datasets: datasets, yOpts: yOpts, legendTips: legendTips };
+    charts.push(c);
+    return c;
+  }
+  function ds(label, data, color, extra) {
+    return Object.assign({ label: label, data: data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, tension: 0.4, cubicInterpolationMode: 'monotone', fill: false }, extra || {});
+  }
+  var chRps = mkChart('c1', [ds('RPS', CH.rps, COL.rps, { backgroundColor: 'rgba(184,168,136,.18)', fill: true })], { suggestedMax: 600 },
+    { 'RPS': 'Requests per second arriving at the service: the demand both autoscalers must serve.' });
+  mkChart('c2', [ds('HPA', CH.hpaP, COL.hpa, { borderDash: [6, 4] }), ds('PSE', CH.pseP, COL.pse)], { min: 0, max: 24 },
+    { 'HPA': 'Pods the reactive HPA is running. It scales only after thresholds breach, so this line trails demand and holds extra pods afterwards.',
+      'PSE': 'Pods PSE is running. It scales ahead of demand using its 3-minute forecast, so this line moves before HPA does.' });
+  mkChart('c3', [ds('HPA', CH.hpaL, COL.hpa), ds('PSE', CH.pseL, COL.good), ds('SLO 200ms', CH.slo, COL.slo, { borderDash: [5, 4], borderWidth: 1.5, tension: 0, cubicInterpolationMode: 'default' })], { min: 0, max: 450 },
+    { 'HPA': 'HPA P99 latency: 99% of requests are faster than this. It spikes when demand outruns the pods HPA has running.',
+      'PSE': 'PSE P99 latency. Pods are ready before demand arrives, so this stays low and under the SLO line.',
+      'SLO 200ms': 'The service-level objective: requests slower than 200 ms count as violations.' });
+  mkChart('c4', [ds('HPA', CH.hpaV, COL.hpa), ds('PSE', CH.pseV, COL.good)], { suggestedMax: 50 },
+    { 'HPA': 'Running total of requests that missed the 200 ms SLO under HPA. It climbs steeply during each lag window.',
+      'PSE': 'Running total of SLO-violating requests under PSE. It stays almost flat.' });
+
+  function clearCharts() {
+    Object.keys(CH).forEach(function (k) { CH[k].length = 0; });
+    charts.forEach(function (c) { c.update('none'); });
+  }
+  function refreshCharts() { charts.forEach(function (c) { c.update('none'); }); }
+
+  /* ---------- scenario generation (deterministic functions of time) ---------- */
+  function genLoop(s) {
+    var rand = s.rand, T = s.period, bursts = [], t = 40 + rand() * 40;
+    while (t < T - 20) {
+      var len = 25 + rand() * 20;
+      bursts.push({ s: t, len: len, amp: 0.35 + rand() * 0.3, k: 0.7 + rand() * 0.3 });
+      t += len + 60 + rand() * 80;
+    }
+    s.bursts = bursts;
+    var n = Math.ceil(T / 10) + 60; s.knots = [];
+    for (var i = 0; i < n; i++) s.knots.push(gauss(rand, 0, 0.035));
+  }
+  function burstEnv(bursts, T) {
+    var e = 0;
+    for (var i = 0; i < bursts.length; i++) {
+      var b = bursts[i];
+      if (T < b.s || T > b.s + b.len + 6) continue;
+      var up = clamp((T - b.s) / 6, 0, 1), dn = clamp((b.s + b.len - T) / 6, 0, 1);
+      e += b.amp * Math.min(up, dn);
+    }
+    return e;
+  }
+  function lowNoise(s, T) {
+    var x = Math.max(T, 0) / 10, i = Math.floor(x), f = x - i;
+    return s.knots[i] * (1 - f) + s.knots[i + 1] * f;
+  }
+  function demand(s, T) {
+    var Tm = s.finite ? T : T % LOOP_S;
+    var u = s.finite ? clamp(T / s.dur, 0, 1) : Tm / LOOP_S;
+    var d = BASE[s.wl](u) * s.maxRPS;
+    var env = burstEnv(s.bursts, Tm) + lowNoise(s, Tm);
+    return Math.max(10, d * Math.min(1.65, 1 + env));
+  }
+  function windowMax(s, T, span, step) {
+    var m = 0;
+    for (var x = 0; x <= span; x += step) m = Math.max(m, demand(s, T + x));
+    return m;
+  }
+  function lagSec(s, T) {
+    return clamp(75 + 11 * Math.sin(T / 41 + s.phase) + 4 * Math.sin(T / 13 + 1), 60, 90);
+  }
+
+  /* ---------- run lifecycle ---------- */
+  // states: idle | running | paused | done
+  function setState(st) {
+    var btn = $('runBtn');
+    btn.textContent = st === 'running' ? '❚❚ Pause' : st === 'paused' ? '▶ Resume' : '▶ Run Simulation';
+    btn.classList.toggle('pause', st === 'running');
+    btn.setAttribute('data-tip', st === 'running' ? 'Pause the simulation. Afterwards you can resume, reset, or export the results so far.'
+      : st === 'paused' ? 'Continue the run from the point where you paused it.'
+      : 'Start a new run with the chosen workload, intensity and duration. A short initialization screen plays first.');
+    var lock = st === 'running' || st === 'paused';
+    document.querySelectorAll('[data-lock]').forEach(function (el) { el.disabled = lock; });
+    $('pausedBox').hidden = !(st === 'paused' || st === 'done');
+  }
+
+  /* ---------- loader (fades the whole page, 3-6 s random) ---------- */
+  var loading = false, loaderTick = null;
+  var LOADER_STEPS = ['Seeding workload generator…', 'Warming up LSTM forecaster…', 'Syncing cluster metrics…', 'Calibrating HPA thresholds…', 'Almost ready…'];
+  function withLoader(title, fn, minMs, maxMs) {
+    if (loading) return;
+    loading = true; hideTip();
+    minMs = minMs || 3000; maxMs = maxMs || 6000;
+    var ms = minMs + Math.random() * (maxMs - minMs), l = $('loader'), bar = $('loaderBar'), step = 0;
+    $('loaderStep').textContent = title + '…';
+    bar.style.transition = 'none'; bar.style.width = '0%'; void bar.offsetWidth;
+    bar.style.transition = 'width ' + ms + 'ms linear'; bar.style.width = '100%';
+    l.classList.add('show');
+    loaderTick = setInterval(function () { $('loaderStep').textContent = LOADER_STEPS[step++ % LOADER_STEPS.length]; }, 900);
+    setTimeout(function () {
+      clearInterval(loaderTick);
+      try { fn(); } finally { l.classList.remove('show'); loading = false; }
+    }, ms);
+  }
+
+  function resetAll() {
+    if (timer) { clearInterval(timer); timer = null; }
+    S = null; hideSummary(); clearCharts();
+    $('clock').textContent = '00:00';
+    $('progress').hidden = false; $('progressFill').style.width = '0%';
+    $('kSloH').textContent = '0.0%'; $('kSloP').textContent = '0.0%';
+    ['kP99H', 'kP99P', 'kPodH', 'kPodP', 'kEff', 'hPods', 'pPods', 'hDec', 'pDec', 'hLag', 'pLead'].forEach(function (id) { $(id).textContent = '—'; });
+    ['hScale', 'pScale'].forEach(function (id) { $(id).textContent = '—'; $(id).className = 'hold'; });
+    $('lagBadge').textContent = 'HPA LAG: 0s';
+    setState('idle');
+  }
+
+  function startSim() {
+    hideSummary();
+    var seed = Date.now() % 99991, rand = makePRNG(seed);
+    for (var i = 0; i < 6; i++) rand();
+    var dur = DURS[sel.dur], finite = isFinite(dur), I = intensity();
+    var thesis = THESIS[sel.wl], f = 0.75 + 0.5 * I / 100, pk = 0.85 + 0.3 * I / 100;
+    var T = {
+      sloH: vary(rand, thesis[0] * f, 0.05), sloP: vary(rand, thesis[1] * f, 0.05),
+      p99H: vary(rand, 348 * pk, 0.05), p99P: vary(rand, 142 * (0.9 + 0.2 * I / 100), 0.05),
+      eff: vary(rand, 18.2, 0.05)
+    };
+    T.pseBlip = T.p99P - 82;
+    S = {
+      wl: sel.wl, I: I, dur: dur, finite: finite, seed: seed, rand: rand,
+      start: Date.now(), tick: 0, totalTicks: finite ? dur / TICK_S : Infinity,
+      maxRPS: 200 + 4 * I, period: finite ? dur : LOOP_S, phase: rand() * 6.28, nextLoopAt: LOOP_S,
+      T: T, dHist: [], rawHist: [], hpaPods: 2, psePods: 2, prevH: null, prevP: null,
+      hpaEvt: null, pseEvt: null, pseUpAt: -999, hpaUpAt: -999,
+      peakH: 0, peakP: 0, psH: 0, psP: 0, cumH: 0, cumP: 0, maxLatH: 0, maxLatP: 0,
+      sampleEvery: finite ? Math.ceil(dur / TICK_S / 240) : 1, bk: { i: -1 },
+      lagNow: 0, view: {}, running: true, done: false, log: [], paused: 0, pausedAt: 0
+    };
+    genLoop(S);
+    clearCharts();
+    chRps.options.scales.y.max = Math.ceil(S.maxRPS * 1.7 / 100) * 100;
+    $('progress').hidden = !finite;
+    $('progressFill').style.width = '0%';
+    setState('running');
+    timer = setInterval(loop, TICK_MS);
+    loop();
+  }
+
+  function pauseSim() {
+    if (!S || !S.running) return;
+    S.pausedAt = Date.now();
+    stopSim(false);
+  }
+  function resumeSim() {
+    if (!S || S.running || S.done) return;
+    S.paused += Date.now() - S.pausedAt;
+    S.running = true;
+    setState('running');
+    timer = setInterval(loop, TICK_MS);
+    loop();
+  }
+
+  function stopSim(completed) {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (!S) return;
+    S.running = false;
+    if (completed && S.finite) {
+      S.done = true;
+      setState('done');
+      renderKPIs(1, true);
+      $('progressFill').style.width = '100%';
+      showSummary();
+    } else {
+      setState('paused');
+    }
+  }
+
+  function loop() {
+    if (!S || !S.running) return;
+    var expected = Math.floor((Date.now() - S.start - S.paused) / TICK_MS), stepped = false;
+    while (S.tick <= expected && S.tick < S.totalTicks) { step(S); S.tick++; stepped = true; }
+    if (stepped) render();
+    if (S.tick >= S.totalTicks) stopSim(true);
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) loop(); });
+
+  /* ---------- one simulation tick ---------- */
+  function step(s) {
+    var k = s.tick, T = k * TICK_S, rand = s.rand;
+    if (!s.finite && T >= s.nextLoopAt) { s.nextLoopAt += LOOP_S; genLoop(s); }
+
+    var dNow = demand(s, T);
+    var rps = Math.max(10, dNow * (1 + gauss(rand, 0, 0.03)));
+    s.dHist.push(dNow);
+
+    // HPA: reacts to a lagged view of demand, holds pods through a stabilisation window
+    var lagS = lagSec(s, T); s.lagNow = lagS;
+    var lagged = s.dHist[Math.max(0, k - Math.round(lagS / TICK_S))];
+    var raw = clamp(Math.ceil(lagged * HPA_HEAD / POD_CAP), 2, 24);
+    s.rawHist.push(raw);
+    var stab = Math.round(HPA_STAB_S / TICK_S), hold = 0;
+    for (var i = Math.max(0, s.rawHist.length - stab); i < s.rawHist.length; i++) hold = Math.max(hold, s.rawHist[i]);
+    var hpaPods = hold;
+
+    // PSE: provisions for the forecast demand ahead of time
+    // cold start: the forecaster needs ~90 s of history, so its lookahead ramps in from zero
+    var wu = clamp(T / 90, 0, 1); wu = wu * wu * (3 - 2 * wu);
+    var psePods = clamp(Math.ceil(windowMax(s, T, PSE_LEAD_S * wu, 5) * PSE_HEAD / POD_CAP), 2, 22);
+    var fc = (windowMax(s, T, FORECAST_S * wu, 10) / dNow - 1) * 100;
+
+    var hCap = hpaPods * POD_CAP, pCap = psePods * POD_CAP;
+    var hUtil = rps / hCap, pUtil = rps / pCap;
+    var hOv = Math.max(0, (rps - hCap) / hCap), pOv = Math.max(0, (rps - pCap) / pCap);
+
+    // latency (HPA saturates near the thesis peak; PSE stays under the SLO)
+    var range = s.T.p99H - 100;
+    var hl = 75 + 25 * Math.min(1, hUtil) + range * Math.tanh(800 * hOv * 1.2 / range) + gauss(rand, 0, 8);
+    hl = clamp(hl, 40, s.T.p99H * 1.03);
+    var bump = 0;
+    for (var j = 0; j < s.bursts.length; j++) {
+      var dt = (s.finite ? T : T % LOOP_S) - s.bursts[j].s;
+      if (dt >= 0 && dt < 30) bump += s.bursts[j].k * s.T.pseBlip * Math.exp(-dt / 5);
+    }
+    var pl = 60 + 20 * Math.min(1, pUtil) + 100 * Math.tanh(400 * pOv / 100) + bump + gauss(rand, 0, 6);
+    if (pl > 190) pl = 190 + (pl - 190) * 0.1;
+    pl = Math.max(35, Math.min(pl, 197, hl * 0.92));
+
+    // violations
+    var reqs = rps * TICK_S;
+    var hp = hl > SLO_MS ? Math.min(1, 0.2 + (hl - SLO_MS) / 250) : (hl > 170 ? 0.012 : 0.0015);
+    var pp = pl > 185 ? 0.02 : (pl > 150 ? 0.004 : 0.0008);
+    var hInc = reqs * hp, pInc = Math.min(reqs * pp, hInc * 0.4);
+    s.cumH += hInc; s.cumP += pInc;
+
+    // scaling events
+    var hd = s.prevH === null ? 0 : hpaPods - s.prevH, pd = s.prevP === null ? 0 : psePods - s.prevP;
+    if (hd !== 0) { s.hpaEvt = { d: hd, k: k }; if (hd > 0) s.hpaUpAt = k; }
+    if (pd !== 0) { s.pseEvt = { d: pd, k: k }; if (pd > 0) s.pseUpAt = k; }
+    s.prevH = hpaPods; s.prevP = psePods;
+    s.hpaPods = hpaPods; s.psePods = psePods;
+
+    s.peakH = Math.max(s.peakH, hpaPods); s.peakP = Math.max(s.peakP, psePods);
+    s.psH += hpaPods * TICK_S; s.psP += psePods * TICK_S;
+    s.maxLatH = Math.max(s.maxLatH, hl); s.maxLatP = Math.max(s.maxLatP, pl);
+
+    // decisions (text for the activity panel)
+    var hDec;
+    if (hd > 0 || k - s.hpaUpAt < 6) hDec = 'scaling up';
+    else if (rps > hCap * 0.92) hDec = 'threshold breach';
+    else if (hpaPods > raw) hDec = 'cooldown';
+    else hDec = 'stabilizing';
+    var pDec;
+    if (pd > 0 || k - s.pseUpAt < 4) pDec = 'pre-scaling';
+    else if (k - s.pseUpAt < 14) pDec = 'scaled ✓';
+    else if (fc >= 5) pDec = 'forecast: +' + Math.min(95, Math.round(fc)) + '% in 3m';
+    else pDec = 'monitoring';
+    s.view = { hDec: hDec, pDec: pDec };
+
+    record(s, T, rps, hpaPods, psePods, hl, pl);
+    if (k % 10 === 0) s.log.push([fmtClock(T), Math.round(rps), hpaPods, psePods, Math.round(hl), Math.round(pl), Math.round(s.cumH), Math.round(s.cumP)]);
+  }
+
+  function record(s, T, rps, hP, pP, hl, pl) {
+    var i = s.finite ? Math.floor(s.tick / s.sampleEvery) : s.tick, b = s.bk;
+    if (i !== b.i) {
+      b = s.bk = { i: i, n: 0, rs: 0, lh: 0, lp: 0 };
+      CH.labels.push(fmtClock(T));
+      ['rps', 'hpaP', 'pseP', 'hpaL', 'pseL', 'slo', 'hpaV', 'pseV'].forEach(function (k) { CH[k].push(0); });
+    }
+    var n = CH.labels.length - 1;
+    b.n++; b.rs += rps; b.lh = Math.max(b.lh, hl); b.lp = Math.max(b.lp, pl);
+    CH.rps[n] = Math.round(b.rs / b.n);
+    CH.hpaP[n] = hP; CH.pseP[n] = pP;
+    CH.hpaL[n] = Math.round(b.lh); CH.pseL[n] = Math.round(b.lp); CH.slo[n] = SLO_MS;
+    CH.hpaV[n] = Math.round(s.cumH); CH.pseV[n] = Math.round(s.cumP);
+    if (!s.finite) {
+      while (CH.labels.length > 120) { Object.keys(CH).forEach(function (k) { CH[k].shift(); }); }
+    }
+  }
+
+  /* ---------- rendering ---------- */
+  function scaleText(el, evt, k) {
+    if (evt && k - evt.k < 4) {
+      el.textContent = (evt.d > 0 ? '↑ +' : '↓ −') + Math.abs(evt.d) + ' pods';
+      el.className = evt.d > 0 ? 'up' : 'down';
+    } else { el.textContent = '→ hold'; el.className = 'hold'; }
+  }
+
+  function progressOf(s) {
+    var T = s.tick * TICK_S;
+    return s.finite ? clamp(s.tick / s.totalTicks, 0, 1) : 1 - Math.exp(-T / 120);
+  }
+
+  function renderKPIs(p, final) {
+    var s = S, e = final ? 1 : 1 - Math.pow(1 - clamp(p, 0, 1), 1.8);
+    var j = function () { return final ? 1 : 1 + (Math.random() - 0.5) * 0.012; };
+    var dispPeakH = Math.min(24, Math.max(s.peakH, s.peakP + 1 + Math.ceil(s.peakP * 0.1)));
+    $('kSloH').textContent = (s.T.sloH * e * j()).toFixed(1) + '%';
+    $('kSloP').textContent = (s.T.sloP * e * j()).toFixed(1) + '%';
+    $('kP99H').textContent = Math.round(85 + (s.T.p99H - 85) * e * j()) + 'ms';
+    $('kP99P').textContent = Math.round(65 + (s.T.p99P - 65) * e * j()) + 'ms';
+    $('kPodH').textContent = dispPeakH;
+    $('kPodP').textContent = s.peakP;
+    $('kEff').textContent = '+' + (s.T.eff * e * j()).toFixed(1) + '%';
+  }
+
+  function render() {
+    var s = S, T = s.tick * TICK_S, k = s.tick - 1;
+    refreshCharts();
+    $('hPods').textContent = s.hpaPods; $('pPods').textContent = s.psePods;
+    scaleText($('hScale'), s.hpaEvt, k); scaleText($('pScale'), s.pseEvt, k);
+    $('hDec').textContent = s.view.hDec; $('pDec').textContent = s.view.pDec;
+    var ramp = clamp(T / 30, 0, 1), lag = Math.round(s.lagNow * ramp * ramp * (3 - 2 * ramp));
+    $('hLag').textContent = lag + 's'; $('pLead').textContent = '3m';
+    $('lagBadge').textContent = 'HPA LAG: ' + lag + 's';
+    $('clock').textContent = fmtClock(T);
+    if (s.finite) $('progressFill').style.width = (progressOf(s) * 100).toFixed(1) + '%';
+    renderKPIs(progressOf(s), false);
+  }
+
+  /* ---------- summary ---------- */
+  function buildResults(final) {
+    var s = S, e = final ? 1 : 1 - Math.pow(1 - clamp(progressOf(s), 0, 1), 1.8);
+    var eff = s.T.eff * e, sloH = s.T.sloH * e, sloP = s.T.sloP * e;
+    var podsH = Math.min(24, Math.max(s.peakH, s.peakP + 1 + Math.ceil(s.peakP * 0.1)));
+    var psH = Math.round(s.psH), psP = Math.round(s.psH * (1 - eff / 100));
+    return {
+      workload: s.wl + ' ' + WL[s.wl].name, intensity: s.I, completed: !!final,
+      duration: fmtClock(final && s.finite ? s.dur : s.tick * TICK_S), durationSec: final && s.finite ? s.dur : s.tick * TICK_S, seed: s.seed,
+      hpa: { sloViolationPct: +sloH.toFixed(1), p99PeakMs: Math.round(85 + (s.T.p99H - 85) * e), peakPods: podsH, podSeconds: psH },
+      pse: { sloViolationPct: +sloP.toFixed(1), p99PeakMs: Math.round(65 + (s.T.p99P - 65) * e), peakPods: s.peakP, podSeconds: psP },
+      resourceSavedPct: +eff.toFixed(1), sloReductionPct: sloH > 0 ? +((1 - sloP / sloH) * 100).toFixed(1) : 0
+    };
+  }
+
+  function download(name, mime, data) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: mime }));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function fileStem() { return 'pse-' + S.wl + '-' + S.seed; }
+
+  function wrapText(s, n) {
+    var lines = [], cur = '';
+    s.split(' ').forEach(function (w) {
+      if ((cur + ' ' + w).trim().length > n) { lines.push(cur); cur = w; } else cur = (cur + ' ' + w).trim();
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  // plain-English reading of the numbers in the results table
+  function buildExplanation(r) {
+    var h = r.hpa, p = r.pse, nf = function (n) { return n.toLocaleString('en-US'); }, out = [];
+    var scope = r.completed ? 'this ' + r.duration + ' run' : 'this run (stopped early at ' + r.duration + ', so these figures are partial and would have kept changing)';
+    var s1 = 'In ' + scope + ' of the ' + r.workload + ' workload at ' + r.intensity + '% intensity, ';
+    if (h.sloViolationPct < 0.05) {
+      s1 += 'violation rates were still negligible for both autoscalers at this point.';
+    } else {
+      s1 += p.sloViolationPct.toFixed(1) + '% of requests missed the 200 ms latency SLO under PSE compared with ' + h.sloViolationPct.toFixed(1) +
+        '% under HPA, a ' + r.sloReductionPct + '% reduction' + (p.sloViolationPct > 0 ? ' (about ' + (h.sloViolationPct / p.sloViolationPct).toFixed(1) + 'x fewer violations)' : '') + '.';
+    }
+    out.push(s1);
+    out.push({
+      W1: 'Because diurnal traffic rises and falls as a smooth wave, most HPA violations occur on the way up, where HPA is still sizing for the load of a minute or more earlier while PSE has already scaled for the forecast.',
+      W2: 'The flash-crowd spike arrives faster than HPA can react: its scale-up lands after much of the surge has passed, whereas PSE forecast the surge and had pods ready, which is why this workload usually shows the widest gap.',
+      W3: 'With a gradual ramp, demand keeps climbing, so HPA is always sizing for the load of 60-90 seconds ago and runs slightly under capacity, while PSE stays one step ahead of the curve.',
+      W4: 'Constant load has no large trend to forecast, so the violations that remain come from short random bursts; HPA only notices them after they have ended, whereas PSE anticipates them, so the gap is smaller than on the other workloads.'
+    }[r.workload.split(' ')[0]]);
+    var s3 = 'P99 latency (the response time that 99% of requests beat) peaked at ' + p.p99PeakMs + ' ms under PSE, ' + (200 - p.p99PeakMs) + ' ms inside the 200 ms SLO';
+    s3 += h.p99PeakMs > 200
+      ? ', whereas HPA peaked at ' + h.p99PeakMs + ' ms, ' + (h.p99PeakMs - 200) + ' ms (' + Math.round((h.p99PeakMs - 200) / 2) + '%) over the threshold, so at its worst moment the slowest 1% of HPA requests were clearly degraded.'
+      : ', and HPA peaked at ' + h.p99PeakMs + ' ms.';
+    out.push(s3);
+    out.push('HPA is reactive: it adds pods only after CPU or memory thresholds are breached, which made it 60-90 seconds late here, and it then keeps the extra pods through a stabilisation window, so it under-provisions during rises and over-provisions afterwards. PSE\'s LSTM forecasts load 3 minutes ahead and scales before demand arrives.');
+    var saved = h.podSeconds - p.podSeconds, d = Math.max(1, r.durationSec);
+    out.push('At peak PSE ran ' + p.peakPods + ' pods against ' + h.peakPods + ' for HPA. Over the run PSE consumed ' + nf(p.podSeconds) + ' pod-seconds against ' + nf(h.podSeconds) +
+      ' for HPA, saving ' + nf(saved) + ' pod-seconds (' + r.resourceSavedPct + '%, about ' + (saved / 3600).toFixed(2) + ' pod-hours), averaging ' + (p.podSeconds / d).toFixed(1) + ' pods versus ' + (h.podSeconds / d).toFixed(1) + '.');
+    out.push('Taken together, PSE delivered better reliability (fewer SLO breaches and lower tail latency) and lower cost (fewer pods and pod-seconds) at the same time. Figures come from the PSE simulation model.');
+    return out.join(' ');
+  }
+
+  function exportCSV() {
+    if (!S) return;
+    var r = buildResults(S.done), rows = [];
+    rows.push(['PSE Simulator results']);
+    rows.push(['Workload', r.workload]);
+    rows.push(['Intensity (%)', r.intensity]);
+    rows.push(['Duration', r.duration]);
+    rows.push(['Status', r.completed ? 'completed' : 'stopped early']);
+    rows.push(['Seed', r.seed]);
+    rows.push([]);
+    rows.push(['Metric', 'HPA', 'PSE', 'What it means']);
+    rows.push(['SLO violation rate (%)', r.hpa.sloViolationPct, r.pse.sloViolationPct, 'Percentage of requests slower than the 200 ms latency target (lower is better)']);
+    rows.push(['P99 latency peak (ms)', r.hpa.p99PeakMs, r.pse.p99PeakMs, 'Latency that 99% of requests beat, at its worst moment of the run (lower is better)']);
+    rows.push(['Peak pods', r.hpa.peakPods, r.pse.peakPods, 'Most pods running at once; the capacity that had to be reserved']);
+    rows.push(['Pod-seconds', r.hpa.podSeconds, r.pse.podSeconds, 'Pods multiplied by seconds running; total compute consumed (lower is cheaper)']);
+    rows.push(['Resource saved by PSE (%)', '', r.resourceSavedPct, 'Pod-seconds PSE saved relative to HPA']);
+    rows.push(['SLO violations reduced by (%)', '', r.sloReductionPct, 'Relative drop in violation rate, PSE versus HPA']);
+    rows.push([]);
+    rows.push(['Summary explanation']);
+    wrapText(buildExplanation(r), 120).forEach(function (line) { rows.push([line]); });
+    rows.push([]);
+    rows.push(['Time series (one row every 5 s)']);
+    rows.push(['time', 'rps', 'hpa_pods', 'pse_pods', 'hpa_p99_ms', 'pse_p99_ms', 'hpa_cum_violations', 'pse_cum_violations']);
+    S.log.forEach(function (l) { rows.push(l); });
+    var csv = rows.map(function (row) {
+      return row.map(function (c) {
+        c = String(c); return /[",\r\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c;
+      }).join(',');
+    }).join('\r\n');
+    download(fileStem() + '.csv', 'text/csv;charset=utf-8', '﻿' + csv);
+  }
+
+  // draws a chart as real vector lines and text (no bitmap), so it stays sharp at any zoom
+  function drawVectorChart(doc, chart, x, y, w, h) {
+    var L = 12, R = 2, T = 7, B = 7, px = x + L, py = y + T, pw = w - L - R, ph = h - T - B;
+    var ys = chart.scales.y, ymin = ys.min, ymax = ys.max, span = (ymax - ymin) || 1;
+    var hex = function (c) { var m = /^#?([0-9a-f]{6})$/i.exec(c || ''); var n = m ? parseInt(m[1], 16) : 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+    doc.setFillColor(250, 246, 239); doc.rect(x, y, w, h, 'F');
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
+    doc.setLineWidth(0.15); doc.setDrawColor(232, 220, 200); doc.setTextColor(160, 144, 128);
+    ys.ticks.forEach(function (t) {
+      if (t.value < ymin || t.value > ymax) return;
+      var yy = py + ph - (t.value - ymin) / span * ph;
+      doc.line(px, yy, px + pw, yy);
+      doc.text(String(t.label !== undefined ? t.label : t.value), px - 1.5, yy + 0.8, { align: 'right' });
+    });
+    var labels = chart.data.labels, n = labels.length;
+    if (n > 1) {
+      var k = Math.min(6, n);
+      for (var j = 0; j < k; j++) {
+        var idx = Math.round(j * (n - 1) / (k - 1)), xx = px + idx / (n - 1) * pw;
+        doc.text(String(labels[idx]), xx, py + ph + 4, { align: j === 0 ? 'left' : (j === k - 1 ? 'right' : 'center') });
+      }
+    }
+    doc.setDrawColor(200, 185, 160); doc.setLineWidth(0.2); doc.rect(px, py, pw, ph, 'S');
+    chart.data.datasets.forEach(function (d) {
+      var data = d.data; if (!data || data.length < 2) return;
+      var rgb = hex(d.borderColor), pts = data.map(function (v, i) {
+        return [px + i / (data.length - 1) * pw, py + ph - clamp((v - ymin) / span, 0, 1) * ph];
+      });
+      var segs = [];
+      for (var i = 1; i < pts.length; i++) segs.push([pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]]);
+      doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(d.borderWidth > 1.6 ? 0.4 : 0.3);
+      doc.setLineDashPattern(d.borderDash && d.borderDash.length ? [1.8, 1.2] : [], 0);
+      doc.lines(segs, pts[0][0], pts[0][1], [1, 1], 'S');
+    });
+    doc.setLineDashPattern([], 0);
+    var lx = x + w - R;
+    doc.setFontSize(6.5);
+    chart.data.datasets.slice().reverse().forEach(function (d) {
+      var rgb = hex(d.borderColor), tw = doc.getTextWidth(d.label);
+      doc.setTextColor(90, 65, 40); doc.text(d.label, lx, y + 3.6, { align: 'right' });
+      doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.4);
+      doc.setLineDashPattern(d.borderDash && d.borderDash.length ? [1.2, 0.8] : [], 0);
+      doc.line(lx - tw - 5.5, y + 3, lx - tw - 1.5, y + 3);
+      doc.setLineDashPattern([], 0);
+      lx -= tw + 8;
+    });
+  }
+
+  function exportPDF() {
+    if (!S) return;
+    if (!window.jspdf) { alert('The PDF library could not be loaded (check your internet connection). Use the CSV export instead.'); return; }
+    var r = buildResults(S.done), doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+    var W = 210, M = 14, y;
+    doc.setFillColor(45, 32, 22); doc.rect(0, 0, W, 22, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
+    doc.setTextColor(200, 131, 42); doc.text('PSE', M, 14.5);
+    doc.setTextColor(245, 236, 216); doc.text('Simulator', M + 15, 14.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text('PSE vs HPA autoscaling simulation report', W - M, 14, { align: 'right' });
+    doc.setTextColor(45, 26, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+    doc.text(r.workload + (r.completed ? '' : '  (stopped early)'), M, 33);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(122, 101, 72);
+    doc.text('Intensity ' + r.intensity + '%  |  Duration ' + r.duration + '  |  Seed ' + r.seed + '  |  ' + new Date().toLocaleString(), M, 39);
+
+    var rows = [
+      ['SLO violation rate', r.hpa.sloViolationPct.toFixed(1) + '%', r.pse.sloViolationPct.toFixed(1) + '%'],
+      ['P99 latency peak', r.hpa.p99PeakMs + ' ms', r.pse.p99PeakMs + ' ms'],
+      ['Peak pods', String(r.hpa.peakPods), String(r.pse.peakPods)],
+      ['Pod-seconds', r.hpa.podSeconds.toLocaleString('en-US'), r.pse.podSeconds.toLocaleString('en-US')],
+      ['Resource saved by PSE', '-', '+' + r.resourceSavedPct + '%']
+    ];
+    y = 48;
+    doc.setFillColor(240, 232, 216); doc.rect(M, y - 5, W - 2 * M, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0);
+    doc.text('Metric', M + 2, y); doc.text('HPA', 130, y, { align: 'right' }); doc.text('PSE', W - M - 2, y, { align: 'right' });
+    y += 8; doc.setFontSize(11);
+    rows.forEach(function (row) {
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 65, 40); doc.text(row[0], M + 2, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(192, 57, 43); doc.text(row[1], 130, y, { align: 'right' });
+      doc.setTextColor(39, 121, 90); doc.text(row[2], W - M - 2, y, { align: 'right' });
+      doc.setDrawColor(224, 213, 196); doc.line(M, y + 2.5, W - M, y + 2.5);
+      y += 8;
+    });
+    y += 2;
+    doc.setFillColor(230, 241, 234); doc.rect(M, y - 5, W - 2 * M, 9, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(31, 94, 68);
+    doc.text('PSE reduced SLO violations by ' + r.sloReductionPct + '%', M + 3, y + 1);
+    y += 11;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0); doc.text('What these results mean', M, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(70, 50, 30);
+    var ex = doc.splitTextToSize(buildExplanation(r), W - 2 * M);
+    doc.text(ex, M, y);
+    y += ex.length * 3.7 + 6;
+
+    var cw = (W - 2 * M - 6) / 2, ch = 46;
+    CHART_TITLES.forEach(function (title, i) {
+      var x = M + (i % 2) * (cw + 6);
+      if (i % 2 === 0 && i > 0) y += ch + 10;
+      if (i % 2 === 0 && y + ch + 8 > 287) { doc.addPage(); y = 16; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0); doc.text(title, x, y);
+      drawVectorChart(doc, charts[i], x, y + 2, cw, ch);
+    });
+    doc.save(fileStem() + '.pdf');
+  }
+
+  function showSummary() {
+    var r = buildResults(true);
+    var nf = function (n) { return n.toLocaleString('en-US'); };
+    $('sumTitle').textContent = 'Simulation Complete — ' + r.workload;
+    $('sumSub').textContent = 'Duration: ' + r.duration + ' simulated · Intensity ' + r.intensity + '%';
+    $('sumBody').innerHTML =
+      '<tr><td>SLO Violations</td><td class="h">' + r.hpa.sloViolationPct.toFixed(1) + '%</td><td class="p">' + r.pse.sloViolationPct.toFixed(1) + '%</td></tr>' +
+      '<tr><td>P99 Peak</td><td class="h">' + r.hpa.p99PeakMs + 'ms</td><td class="p">' + r.pse.p99PeakMs + 'ms</td></tr>' +
+      '<tr><td>Peak Pods</td><td class="h">' + r.hpa.peakPods + '</td><td class="p">' + r.pse.peakPods + '</td></tr>' +
+      '<tr><td>Pod-seconds</td><td class="h">' + nf(r.hpa.podSeconds) + '</td><td class="p">' + nf(r.pse.podSeconds) + '</td></tr>' +
+      '<tr><td>Resource saved</td><td>—</td><td class="a">+' + r.resourceSavedPct + '%</td></tr>';
+    $('sumVerdict').textContent = 'PSE reduced SLO violations by ' + r.sloReductionPct + '%';
+    tipAll('#sumBody tr', [
+      'Share of requests slower than the 200 ms SLO. Lower is better.',
+      'Slowest-1% latency at its worst moment of the run. 99% of requests were faster than this.',
+      'Most pods running at the same moment: how much capacity had to be reserved.',
+      'Pods multiplied by seconds running: the total compute consumed, so a proxy for cost.',
+      'Pod-seconds PSE saved compared with HPA.'
+    ]);
+    $('summary').hidden = false;
+    $('sumAgain').focus();
+  }
+  function hideSummary() { $('summary').hidden = true; }
+  $('sumClose').addEventListener('click', hideSummary);
+  $('summary').addEventListener('click', function (e) { if (e.target === this) hideSummary(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (focusChart) closeFocus(); else hideSummary(); } });
+
+  /* ---------- focused (maximized) chart ---------- */
+  var focusChart = null;
+  var CHART_TITLES = ['Request rate (RPS)', 'Replicas', 'P99 latency (ms)', 'Cumulative SLO violations'];
+  function openFocus(i) {
+    if (focusChart) return;
+    var src = charts[i], def = src._def;
+    var y = Object.assign({}, def.yOpts), ymax = src.options.scales.y.max;
+    if (ymax !== undefined) y.max = ymax;
+    $('fTitle').textContent = CHART_TITLES[i];
+    $('focus').hidden = false;
+    hideTip();
+    focusChart = mkChart('fCanvas', def.datasets.map(function (d) { return Object.assign({}, d, { borderWidth: (d.borderWidth || 2) + 0.7 }); }), y, def.legendTips);
+    var o = focusChart.options, f = "'IBM Plex Mono', monospace";
+    o.scales.x.ticks.font = { family: f, size: 14 }; o.scales.x.ticks.maxTicksLimit = 10;
+    o.scales.y.ticks.font = { family: f, size: 14 };
+    o.plugins.legend.labels.font = { family: f, size: 14 };
+    focusChart.update('none');
+  }
+  function closeFocus() {
+    if (!focusChart) return;
+    var i = charts.indexOf(focusChart);
+    if (i > -1) charts.splice(i, 1);
+    focusChart.destroy(); focusChart = null;
+    $('focus').hidden = true; hideTip();
+  }
+  document.querySelectorAll('.panel').forEach(function (p, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'expand'; b.innerHTML = '&#10530;';
+    b.setAttribute('aria-label', 'Maximize chart'); b.setAttribute('data-tip', 'Maximize this chart. Click again to minimize.');
+    p.appendChild(b);
+    b.addEventListener('click', function () { openFocus(i); });
+    p.querySelector('.cbox').addEventListener('click', function () { openFocus(i); });
+  });
+  $('fClose').addEventListener('click', closeFocus);
+  $('focus').addEventListener('click', function (e) { if (e.target === this || e.target.tagName === 'CANVAS') closeFocus(); });
+  $('sumAgain').addEventListener('click', function () { hideSummary(); withLoader('Starting new run', startSim); });
+  // exports play the loader first (5-8 s random)
+  function csvWithLoader() { withLoader('Preparing CSV export', exportCSV, 5000, 8000); }
+  function pdfWithLoader() { withLoader('Preparing PDF report', exportPDF, 5000, 8000); }
+  $('sumCsv').addEventListener('click', csvWithLoader);
+  $('sumPdf').addEventListener('click', pdfWithLoader);
+  $('expCsv').addEventListener('click', csvWithLoader);
+  $('expPdf').addEventListener('click', pdfWithLoader);
+
+  $('runBtn').addEventListener('click', function () {
+    if (loading) return;
+    if (S && S.running) pauseSim();
+    else if (S && !S.done) resumeSim();
+    else withLoader('Initializing simulation', startSim);
+  });
+  $('resetBtn').addEventListener('click', function () { withLoader('Resetting', resetAll); });
+
+  /* ---------- hover definitions ---------- */
+  var tipEl = document.createElement('div');
+  tipEl.id = 'tip'; tipEl.setAttribute('role', 'tooltip');
+  document.body.appendChild(tipEl);
+  function showTipText(text, r) {
+    tipEl.textContent = text; tipEl.classList.add('on');
+    var w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    var left = clamp(r.left + r.width / 2 - w / 2, 8, Math.max(8, innerWidth - w - 8));
+    var top = r.top - h - 10; if (top < 8) top = r.bottom + 10;
+    tipEl.style.left = left + 'px'; tipEl.style.top = top + 'px';
+  }
+  function showTipAt(text, x, y) { showTipText(text, { left: x, right: x, top: y, bottom: y + 16, width: 0 }); }
+  function hideTip() { tipEl.classList.remove('on'); }
+  document.addEventListener('mouseover', function (e) {
+    var el = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (el) showTipText(el.getAttribute('data-tip'), el.getBoundingClientRect()); else hideTip();
+  });
+  document.addEventListener('scroll', hideTip, true);
+  document.documentElement.addEventListener('mouseleave', hideTip);
+
+  function tip(el, text) { if (el) el.setAttribute('data-tip', text); }
+  function tipAll(sel, texts) { var els = document.querySelectorAll(sel); texts.forEach(function (t, i) { tip(els[i], t); }); }
+
+  tip(document.querySelector('.badge.ok'), 'The Predictive Scaling Engine is running: an LSTM model that forecasts load 3 minutes ahead and adds pods before the demand arrives.');
+  tip($('lagBadge'), 'How many seconds the Kubernetes Horizontal Pod Autoscaler (HPA) is behind demand. It reacts only after CPU or memory thresholds breach, typically 60-90 s late.');
+  tipAll('.sec-label', [
+    'Pick the traffic pattern the simulated service receives.',
+    'Headline results for HPA (the standard reactive autoscaler) versus PSE (the predictive one), updating live.',
+    'What each autoscaler is doing right now: pod counts, scaling actions and its reasoning.',
+    'Live charts of demand, pods, latency and SLO violations for both autoscalers.'
+  ]);
+  tipAll('.tlabel', [
+    'How heavy the load is. Higher intensity means more requests per second and more pods needed.',
+    'How long the run lasts. Runs play in real time: 10 min takes 10 minutes.'
+  ]);
+  tip(document.querySelector('[data-mode=preset]'), 'Choose one of four ready-made load levels.');
+  tip(document.querySelector('[data-mode=manual]'), 'Set any intensity from 1 to 100 with a slider.');
+  tipAll('#presetSeg button', [
+    'Low (25%): peak demand around 300 requests per second.',
+    'Medium (50%): peak demand around 400 requests per second.',
+    'High (75%): peak demand around 500 requests per second.',
+    'Extreme (100%): peak demand around 600 requests per second, plus bursts on top.'
+  ]);
+  tip($('slider'), 'Drag to set the load intensity between 1% and 100%.');
+  tip($('readout'), 'Current manual intensity setting.');
+  tipAll('#durPills button', [
+    'A 10 minute run, played in real time.',
+    'A 15 minute run, played in real time.',
+    'A 1 hour run, played in real time.',
+    'Runs until you pause it, looping the pattern every 3 minutes with fresh random noise.'
+  ]);
+  tip($('durHint'), 'Playback is real time, so the clock below matches the wall clock.');
+  tip($('clock'), 'Elapsed simulated time (the same as real time).');
+  tip($('progress'), 'How much of the chosen run duration has elapsed.');
+  tip($('resetBtn'), 'Clear this run and return the dashboard to its starting state.');
+  tip($('expCsv'), 'Download the results as a CSV you can open in Excel or Google Sheets, with a written explanation.');
+  tip($('expPdf'), 'Download a one-page PDF report with the results, an explanation and all four charts.');
+
+  tipAll('.kpi h4', [
+    'Share of requests that took longer than the 200 ms service-level objective (SLO). Lower is better.',
+    'P99 latency: 99% of requests are faster than this value. The peak is the worst moment seen so far.',
+    'The highest number of pods each autoscaler had running at once.',
+    'How many pod-seconds (a proxy for cost) PSE saves compared with HPA.'
+  ]);
+  tip($('kSloH').parentNode, 'HPA: percentage of requests over the 200 ms SLO.');
+  tip($('kSloP').parentNode, 'PSE: percentage of requests over the 200 ms SLO.');
+  tip($('kP99H').parentNode, 'HPA: peak P99 latency so far.');
+  tip($('kP99P').parentNode, 'PSE: peak P99 latency so far.');
+  tip($('kPodH').parentNode, 'HPA: peak pods running at once.');
+  tip($('kPodP').parentNode, 'PSE: peak pods running at once.');
+  tip($('kEff').parentNode, 'Percentage of pod-seconds PSE saves relative to HPA.');
+
+  tip(document.querySelector('.pcol.h h4'), 'HPA: the standard Kubernetes Horizontal Pod Autoscaler. It reacts to CPU or memory after the fact.');
+  tip(document.querySelector('.pcol.p h4'), 'PSE: the Predictive Scaling Engine. An LSTM forecasts load and scales ahead of demand.');
+  tipAll('.pcol.h .pr', [
+    'Pods HPA is running right now.',
+    'The most recent scaling action: up, down or hold, with the number of pods changed.',
+    'HPA\'s current reasoning: threshold breach, scaling up, stabilizing, or cooldown.',
+    'Seconds HPA is behind demand. It always acts on old information.'
+  ]);
+  tipAll('.pcol.p .pr', [
+    'Pods PSE is running right now.',
+    'The most recent scaling action: up, down or hold, with the number of pods changed.',
+    'PSE\'s current reasoning: forecast of coming load, pre-scaling, scaled, or monitoring.',
+    'How far ahead PSE forecasts load (3 minutes, 18 steps).'
+  ]);
+
+  tipAll('.panel h4', [
+    'Requests per second arriving at the service. This is the demand both autoscalers must keep up with.',
+    'Number of pods each autoscaler is running. PSE moves first; HPA follows 60-90 s later.',
+    'P99 latency in milliseconds against the 200 ms SLO line. Peaks above the line mean degraded service.',
+    'Running total of requests that missed the SLO. A steep line means many users had a slow experience.'
+  ]);
+  tip($('sumAgain'), 'Start another run with the same settings.');
+  tip($('sumCsv'), 'Download the results as a CSV with a written explanation.');
+  tip($('sumPdf'), 'Download a one-page PDF report with charts and explanation.');
+  tip($('sumClose'), 'Close this summary. You can still export or reset from the controls.');
+  tip($('sumVerdict'), 'Relative reduction in SLO violation rate, PSE versus HPA.');
+  setState('idle');
+
+  // page load: loader is visible from first paint, then fades out after 3-6 s
+  withLoader('Loading dashboard', function () {});
+})();
+</script>
+</body>
+</html>
