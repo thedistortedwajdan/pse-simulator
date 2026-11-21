@@ -1,186 +1,220 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-radius="soft">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PSE Simulator</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<meta name="description" content="Live comparison of the Predictive Scaling Engine (PSE) and the Kubernetes Horizontal Pod Autoscaler (HPA) under the same traffic.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
+/* palette: cool grey + cobalt, type: Geist + Geist Mono, radius: soft */
 :root{
-  --bg:#faf6ef; --hdr:#2d2016; --tool:#f0e8d8; --border:#e0d5c4;
-  --accent:#c8832a; --bad:#c0392b; --good:#27795a;
-  --text:#2d1a00; --muted:#9a8060; --mono:#a09080; --grid:#e8dcc8;
-  --head-font:'Fraunces',Georgia,serif;
-  --mono-font:'IBM Plex Mono',ui-monospace,Consolas,monospace;
-  --body-font:'IBM Plex Sans',system-ui,sans-serif;
+  --bg:#eef0f3; --surface:#e2e5ea; --card:#f8f9fb; --ink:#0b0c0e; --muted:#5d6470; --faint:#8a93a3;
+  --line:rgba(11,12,14,.11); --grid:#dfe3e9;
+  --accent:#1f2de6; --accent-ink:#ffffff;
+  --inv:#0b0c0e; --inv-2:#17181a; --inv-ink:#eef0f3; --inv-muted:#8e8f92;
+  --bad:#d2402e; --good:#15845a; --warn:#b7791f;
+  --font-display:"Geist",system-ui,sans-serif;
+  --font-text:"Geist",system-ui,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --display-weight:500; --display-tracking:-0.035em;
+  --r:10px; --r-sm:7px;
+  --shadow:0 1px 2px rgba(11,12,14,.05),0 10px 26px -14px rgba(11,12,14,.28);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--text);font-family:var(--body-font);overflow-x:hidden}
-body{min-height:100vh;line-height:1.45;font-size:17px;font-weight:500}
-button{font-family:inherit;cursor:pointer;color:inherit}
-button:disabled,input:disabled{cursor:not-allowed;opacity:.55}
-.wrap{max-width:1240px;margin:0 auto;padding:0 16px}
-
-/* header */
-header{background:var(--hdr);color:#f5ecd8}
-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
-.brand{font-family:var(--head-font);font-weight:800;font-size:30px;letter-spacing:.2px}
-.brand b{color:var(--accent)}
-.brand span{color:#f5ecd8;font-weight:600;margin-left:8px}
-.badges{display:flex;gap:8px;flex-wrap:wrap}
-.badge{font-family:var(--mono-font);font-size:13px;font-weight:700;padding:6px 12px;border-radius:4px;border:1px solid;letter-spacing:.3px;white-space:nowrap}
-.badge.ok{background:#d4edd8;color:#2a6b35;border-color:#a8d8b0}
-.badge.lag{background:#fdecc8;color:#8a5010;border-color:#f5c870}
-
-/* sections */
-.sec-label{font-family:var(--head-font);font-size:22px;font-weight:700;color:var(--text);margin:24px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
-.workloads{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.wl{text-align:left;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0;transition:background .15s,border-color .15s}
-.wl:hover:not(:disabled){background:#f6efe0}
-.wl.sel{border-left-color:var(--accent);background:rgba(200,131,42,.09);border-color:#dcc49c;border-left-color:var(--accent)}
-.wl h3{font-family:var(--head-font);font-size:21px;font-weight:700}
-.wl p{font-size:14.5px;color:#7a6548;line-height:1.35;font-weight:500}
-.wl svg{width:100%;height:28px;margin-top:2px}
-.wl svg polyline{fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
-.wl:not(.sel) svg polyline{stroke:#b8a888}
-
-/* toolbar */
-.toolbar{background:var(--tool);border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:18px}
-.toolbar .wrap{padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:1fr 1fr auto;gap:16px 24px;align-items:start}
-.tgroup{min-width:0}
-.tlabel{font-family:var(--head-font);font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--bg);max-width:100%}
-.seg button{background:transparent;border:0;border-right:1px solid var(--border);padding:9px 14px;font-family:var(--mono-font);font-size:14px;font-weight:500;color:#5a4128}
-.seg button:last-child{border-right:0}
-.seg button.on{background:var(--accent);color:#fff;font-weight:600}
-.seg.mode{margin-bottom:8px}
-.seg.mode button{font-size:13px;padding:6px 12px}
-.pills{display:flex;gap:6px;flex-wrap:wrap}
-.pill{border:1px solid var(--border);background:var(--bg);border-radius:999px;padding:8px 16px;font-family:var(--mono-font);font-size:14px;font-weight:500;color:#5a4128}
-.pill.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-.hint{font-size:13.5px;color:#7a6548;margin-top:8px}
-.slider-row{display:flex;align-items:center;gap:12px}
-.slider-row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
-.readout{font-family:var(--mono-font);font-size:16px;font-weight:700;color:var(--accent);white-space:nowrap}
-.runcol{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:190px}
-.run{background:var(--accent);color:#fff;border:0;border-radius:6px;padding:13px 20px;font-family:var(--head-font);font-weight:800;font-size:19px;letter-spacing:.2px}
-.run:hover{filter:brightness(1.07)}
-.run.stop{background:var(--bad)}
-.clock{font-family:var(--mono-font);font-size:20px;font-weight:700;background:#dbe6ef;color:#34566e;border:1px solid #bfd0de;border-radius:4px;padding:5px 10px;text-align:center}
-.panel{position:relative}
-.cbox{cursor:zoom-in}
-.expand{position:absolute;top:8px;right:10px;background:var(--bg);border:1px solid var(--border);border-radius:5px;width:30px;height:28px;font-size:16px;line-height:1;color:#7a6548}
-.expand:hover{border-color:var(--accent);color:var(--accent)}
-.focus{position:fixed;inset:0;z-index:60;background:rgba(45,32,22,.62);display:flex;align-items:center;justify-content:center;padding:16px}
-.fmodal{background:var(--bg);border:1px solid var(--border);border-top:4px solid var(--accent);border-radius:8px;width:min(1100px,100%);box-shadow:0 20px 50px rgba(0,0,0,.35)}
-.fhead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border)}
-.fhead h3{font-family:var(--head-font);font-size:24px;font-weight:800}
-.fhead button{background:var(--bg);border:1px solid var(--accent);color:#8a5010;border-radius:6px;padding:8px 14px;font-family:var(--mono-font);font-size:13px;font-weight:600;white-space:nowrap}
-.fbox{position:relative;height:min(68vh,600px);margin:10px 14px 4px;cursor:zoom-out}
-.fbox canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
-.fnote{font-size:13px;color:#7a6548;padding:0 16px 12px}
-#tip{position:fixed;left:0;top:0;z-index:300;max-width:300px;background:#2d2016;color:#f5ecd8;font-family:var(--body-font);font-size:14px;font-weight:500;line-height:1.4;padding:9px 12px;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .12s}
-#tip.on{opacity:1}
-h4[data-tip],.tlabel[data-tip]{cursor:help}
-h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;color:var(--accent);font-family:var(--body-font);font-weight:600}
-.tlabel{justify-content:flex-start}
-.pr>span:first-child[data-tip],.kpi small[data-tip]{cursor:help;text-decoration:underline dotted #b8a888;text-underline-offset:4px}
-.run.pause{background:#6a5238}
-#pausedBox{display:flex;flex-direction:column;gap:8px}
-.reset{background:var(--bg);border:1px solid var(--bad);color:var(--bad);border-radius:6px;padding:9px 12px;font-family:var(--head-font);font-weight:700;font-size:16px}
-.reset:hover{background:rgba(192,57,43,.08)}
-.loader{position:fixed;inset:0;z-index:100;background:rgba(250,246,239,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;text-align:center;opacity:0;visibility:hidden;transition:opacity .45s ease,visibility 0s linear .45s}
-.loader.show{opacity:1;visibility:visible;transition:opacity .45s ease,visibility 0s}
-.spinner{width:64px;height:64px;border-radius:50%;border:5px solid var(--border);border-top-color:var(--accent);animation:spin .9s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loader .lt{font-family:var(--head-font);font-weight:800;font-size:30px;color:var(--text)}
-.loader .lt b{color:var(--accent)}
-.loader .ls{font-family:var(--mono-font);font-size:14px;color:#7a6548;min-height:1.5em}
-.lbar{width:min(280px,70vw);height:5px;background:#e6dac5;border-radius:3px;overflow:hidden}
-.lbar i{display:block;height:100%;width:0;background:var(--accent)}
-.exp{display:flex;gap:8px}
-.exp button{flex:1;background:var(--bg);border:1px solid var(--accent);color:#8a5010;border-radius:6px;padding:8px 10px;font-family:var(--mono-font);font-size:13px;font-weight:600}
-.exp button:hover:not(:disabled){background:rgba(200,131,42,.12)}
-.progress{height:6px;background:#e6dac5;border-radius:3px;overflow:hidden}
-.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .45s linear}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--font-text);overflow-x:hidden}
+body{min-height:100vh;font-size:16px;line-height:1.5;font-weight:400;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;color:inherit}
+button:disabled,input:disabled{cursor:not-allowed;opacity:.5}
+button:active:not(:disabled){transform:scale(.98)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [hidden]{display:none!important}
+.wrap{max-width:1360px;margin:0 auto;padding:0 24px}
+
+/* top bar */
+.top{background:var(--inv);color:var(--inv-ink);position:sticky;top:0;z-index:20}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:22px;letter-spacing:-.03em}
+.brand i{display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--accent);box-shadow:0 0 0 3px rgba(238,240,243,.14)}
+.brand span{color:var(--inv-muted);font-weight:500}
+.badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-family:var(--font-mono);font-size:12.5px;font-weight:500;padding:6px 12px;border-radius:999px;border:1px solid;white-space:nowrap}
+.badge.ok{background:rgba(21,132,90,.2);color:#86e3b6;border-color:rgba(134,227,182,.32)}
+.badge.lag{background:rgba(183,121,31,.2);color:#f2c777;border-color:rgba(242,199,119,.32)}
+
+/* app layout: controls left, results right */
+.app{display:grid;grid-template-columns:344px minmax(0,1fr);gap:28px;align-items:start;padding-top:28px;padding-bottom:56px}
+.side{position:sticky;top:78px;max-height:calc(100vh - 94px);overflow:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.main{min-width:0}
+.intro h1{font-family:var(--font-display);font-weight:var(--display-weight);font-size:clamp(30px,3.6vw,48px);letter-spacing:var(--display-tracking);line-height:1.04;max-width:20ch}
+.intro p{color:var(--muted);font-size:17px;max-width:62ch;margin-top:12px}
+.sec-label{font-family:var(--font-display);font-size:21px;font-weight:500;letter-spacing:-.02em;margin:0 0 10px;color:var(--ink)}
+.main .sec-label{margin-top:30px}
+.side .sec-label{font-size:18px}
+
+/* workload cards */
+.workloads{display:flex;flex-direction:column;gap:8px}
+.wl{display:grid;grid-template-columns:minmax(0,1fr) 78px;grid-template-areas:"h s" "p s";column-gap:12px;row-gap:2px;align-items:center;text-align:left;background:var(--bg);border:1px solid var(--line);border-left:3px solid transparent;border-radius:var(--r-sm);padding:10px 12px;min-width:0;transition:transform .16s ease,box-shadow .16s ease,background .16s,border-color .16s}
+.wl h3{grid-area:h;font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.015em}
+.wl p{grid-area:p;font-size:13px;color:var(--muted);line-height:1.35}
+.wl svg{grid-area:s;width:78px;height:30px}
+.wl svg polyline{fill:none;stroke:var(--faint);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.wl:hover:not(:disabled){transform:translateY(-2px);box-shadow:var(--shadow)}
+.wl.sel{background:rgba(31,45,230,.07);border-color:rgba(31,45,230,.28);border-left-color:var(--accent)}
+.wl.sel svg polyline{stroke:var(--accent)}
+
+/* settings */
+.tlabel{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-bottom:8px;color:var(--ink)}
+.tlabel.t2{margin-top:18px}
+.seg{display:flex;width:100%;background:var(--surface);border-radius:var(--r-sm);padding:3px;gap:2px}
+.seg button{flex:1;border:0;background:transparent;padding:8px 4px;border-radius:5px;font-family:var(--font-mono);font-size:12.5px;font-weight:500;color:var(--muted);transition:background .12s,color .12s}
+.seg button:hover:not(.on):not(:disabled){background:rgba(11,12,14,.06);color:var(--ink)}
+.seg button.on{background:var(--ink);color:#fff}
+.seg.mode{margin-bottom:10px}
+.pills{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pill{border:1px solid var(--line);background:var(--card);border-radius:var(--r-sm);padding:9px 8px;font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--muted);text-align:center;transition:background .12s,color .12s,transform .12s}
+.pill:hover:not(.on):not(:disabled){background:var(--surface);color:var(--ink)}
+.pill.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.hint{font-size:13px;color:var(--muted);margin-top:8px}
+.slider-row{display:flex;flex-direction:column;gap:6px}
+.slider-row input[type=range]{width:100%;accent-color:var(--accent)}
+.readout{font-family:var(--font-mono);font-size:14px;font-weight:600;color:var(--accent)}
+
+/* run box */
+.run-box{display:flex;flex-direction:column;gap:10px}
+.run{width:100%;background:var(--accent);color:var(--accent-ink);border:0;border-radius:var(--r-sm);padding:14px 18px;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.01em;transition:transform .14s ease,filter .14s ease}
+.run:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.1)}
+.run.pause{background:var(--ink)}
+.clock{font-family:var(--font-mono);font-size:30px;font-weight:600;letter-spacing:.02em;background:var(--inv);color:#fff;border-radius:var(--r-sm);padding:10px;text-align:center}
+.progress{height:6px;background:var(--surface);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .45s linear}
+#pausedBox{display:flex;flex-direction:column;gap:8px}
+.reset{background:transparent;border:1px solid var(--bad);color:var(--bad);border-radius:var(--r-sm);padding:10px 12px;font-family:var(--font-display);font-weight:600;font-size:15px;transition:background .14s,transform .14s}
+.reset:hover{background:rgba(210,64,46,.08);transform:translateY(-1px)}
+.exp{display:flex;gap:8px}
+.exp button{flex:1;background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:var(--r-sm);padding:9px 10px;font-family:var(--font-mono);font-size:13px;font-weight:500;transition:border-color .14s,background .14s,transform .14s}
+.exp button:hover:not(:disabled){border-color:var(--accent);background:rgba(31,45,230,.06);transform:translateY(-1px)}
 
 /* KPIs */
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.kpi{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;min-width:0}
-.kpi h4{font-family:var(--head-font);font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px}
-.kpi .row{display:flex;justify-content:space-between;align-items:baseline;gap:6px;font-family:var(--mono-font)}
-.kpi .row small{font-size:13px;font-weight:600;color:#7a6548}
-.kpi .row b{font-size:clamp(22px,3vw,34px);font-weight:700}
-.kpi .bad{color:var(--bad)} .kpi .good{color:var(--good)} .kpi .amb{color:var(--accent)}
-.kpi .note{font-size:13px;color:#7a6548;margin-top:6px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-width:0;transition:transform .16s ease,box-shadow .16s ease}
+.kpi:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.kpi h4{font-size:14px;font-weight:500;color:var(--muted);margin-bottom:10px}
+.kpi .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-family:var(--font-mono)}
+.kpi .row small{font-size:12.5px;font-weight:500;color:var(--muted)}
+.kpi .row b{font-size:clamp(22px,2.3vw,32px);font-weight:600;letter-spacing:-.02em}
+.kpi .bad{color:var(--bad)} .kpi .good{color:var(--accent)} .kpi .amb{color:var(--good)}
+.kpi .note{font-size:12.5px;color:var(--faint);margin-top:8px}
 
-/* pod panel */
-.pods{background:var(--bg);border:1px solid var(--border);border-radius:6px;display:grid;grid-template-columns:1fr 1fr}
-.pcol{padding:12px 14px;min-width:0}
-.pcol+.pcol{border-left:1px solid var(--border)}
-.pcol h4{font-family:var(--head-font);font-size:22px;font-weight:800;margin-bottom:8px}
+/* activity */
+.pods{background:var(--card);border:1px solid var(--line);border-radius:var(--r);display:grid;grid-template-columns:1fr 1fr}
+.pcol{padding:14px 18px;min-width:0}
+.pcol+.pcol{border-left:1px solid var(--line)}
+.pcol h4{font-family:var(--font-display);font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
 .pcol.h h4{color:var(--bad)} .pcol.p h4{color:var(--accent)}
-.pr{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono-font);font-size:15px;padding:5px 0;border-top:1px dashed var(--grid)}
+.pr{display:flex;justify-content:space-between;gap:10px;font-family:var(--font-mono);font-size:14px;padding:7px 0;border-top:1px solid var(--line)}
 .pr:first-of-type{border-top:0}
-.pr span:first-child{color:#7a6548}
-.pr span:last-child{text-align:right;font-weight:700;overflow-wrap:anywhere}
-.up{color:var(--bad)} .down{color:var(--good)} .hold{color:#6a5238}
+.pr span:first-child{color:var(--muted)}
+.pr span:last-child{text-align:right;font-weight:600;overflow-wrap:anywhere}
+.up{color:var(--bad)} .down{color:var(--good)} .hold{color:var(--muted)}
 
 /* charts */
-.charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-bottom:30px}
-.panel{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px 8px;min-width:0}
-.panel h4{font-family:var(--head-font);font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
-.cbox{position:relative;height:220px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.panel{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px 10px;min-width:0;transition:transform .16s ease,box-shadow .16s ease}
+.panel:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.panel h4{font-family:var(--font-display);font-size:18px;font-weight:500;letter-spacing:-.015em;margin-bottom:8px;padding-right:40px}
+.cbox{position:relative;height:230px;cursor:zoom-in}
 .cbox canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.expand{position:absolute;top:10px;right:12px;background:var(--bg);border:1px solid var(--line);border-radius:6px;width:30px;height:28px;font-size:15px;line-height:1;color:var(--muted);transition:border-color .14s,color .14s}
+.expand:hover{border-color:var(--accent);color:var(--accent)}
 
-/* summary */
-.overlay{position:fixed;inset:0;background:rgba(45,32,22,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;overflow-y:auto}
-.modal{background:var(--bg);border:1px solid var(--border);border-top:4px solid var(--accent);border-radius:8px;max-width:520px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3)}
-.modal header{background:none;color:var(--text);padding:16px 18px 6px}
-.modal h2{font-family:var(--head-font);font-size:26px;font-weight:800}
-.modal .sub{font-family:var(--mono-font);font-size:14px;color:#7a6548;margin-top:2px}
-.modal table{width:calc(100% - 36px);margin:10px 18px;border-collapse:collapse;font-family:var(--mono-font);font-size:15px}
-.modal th{font-weight:600;color:var(--muted);text-align:right;padding:6px 0;border-bottom:1px solid var(--border)}
+/* modals */
+.overlay{position:fixed;inset:0;background:rgba(11,12,14,.58);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;overflow-y:auto}
+.modal{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:var(--r);max-width:540px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.mhead{padding:18px 20px 6px}
+.modal h2{font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+.modal .sub{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin-top:6px}
+.modal table{width:calc(100% - 40px);margin:10px 20px;border-collapse:collapse;font-family:var(--font-mono);font-size:14.5px}
+.modal th{font-weight:500;color:var(--muted);text-align:right;padding:6px 0;border-bottom:1px solid var(--line)}
 .modal th:first-child{text-align:left}
-.modal td{padding:7px 0;border-bottom:1px dashed var(--grid);text-align:right}
-.modal td:first-child{text-align:left;color:#6a5238}
-.modal td.h{color:var(--bad);font-weight:600} .modal td.p{color:var(--good);font-weight:600} .modal td.a{color:var(--accent);font-weight:600}
-.modal .verdict{margin:6px 18px 12px;padding:10px 12px;background:#e6f1ea;border:1px solid #bddac8;color:#1f5e44;border-radius:6px;font-weight:700;font-size:17px}
-.modal .acts{display:flex;gap:10px;padding:0 18px 18px;flex-wrap:wrap}
-.modal .acts button{flex:1;min-width:130px;padding:11px 14px;border-radius:6px;font-family:var(--head-font);font-weight:700;font-size:16px}
+.modal td{padding:9px 0;border-bottom:1px solid var(--line);text-align:right}
+.modal td:first-child{text-align:left;color:var(--muted)}
+.modal td.h{color:var(--bad);font-weight:600} .modal td.p{color:var(--accent);font-weight:600} .modal td.a{color:var(--good);font-weight:600}
+.modal .verdict{margin:8px 20px 14px;padding:12px 14px;background:rgba(21,132,90,.1);border:1px solid rgba(21,132,90,.28);color:#0f6847;border-radius:var(--r-sm);font-weight:600;font-size:16px}
+.modal .acts{display:flex;gap:10px;padding:0 20px 20px;flex-wrap:wrap}
+.modal .acts button{flex:1;min-width:130px;padding:11px 14px;border-radius:var(--r-sm);font-family:var(--font-display);font-weight:600;font-size:15px;transition:transform .14s,filter .14s,background .14s}
 .btn-a{background:var(--accent);color:#fff;border:0}
-.btn-b{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+.btn-a:hover{transform:translateY(-1px);filter:brightness(1.1)}
+.btn-b{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn-b:hover{background:var(--surface);transform:translateY(-1px)}
+
+.focus{position:fixed;inset:0;z-index:60;background:rgba(11,12,14,.62);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px}
+.fmodal{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:var(--r);width:min(1100px,100%);box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.fhead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.fhead h3{font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:-.025em}
+.fhead button{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:var(--r-sm);padding:8px 14px;font-family:var(--font-mono);font-size:13px;font-weight:500;white-space:nowrap;transition:border-color .14s,background .14s}
+.fhead button:hover{border-color:var(--accent);background:rgba(31,45,230,.06)}
+.fbox{position:relative;height:min(68vh,600px);margin:12px 16px 4px;cursor:zoom-out}
+.fbox canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.fnote{font-size:13px;color:var(--muted);padding:0 18px 14px}
+
+/* tooltips */
+#tip{position:fixed;left:0;top:0;z-index:300;max-width:300px;background:var(--inv);color:var(--inv-ink);font-family:var(--font-text);font-size:13.5px;font-weight:400;line-height:1.45;padding:9px 12px;border-radius:var(--r-sm);box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none;opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+h4[data-tip],.tlabel[data-tip]{cursor:help}
+h4[data-tip]::after,.tlabel[data-tip]::after{content:"\24D8";margin-left:6px;font-size:.78em;color:var(--accent);font-weight:500}
+.pr>span:first-child[data-tip],.kpi small[data-tip]{cursor:help;text-decoration:underline dotted var(--faint);text-underline-offset:4px}
+
+/* loader */
+.loader{position:fixed;inset:0;z-index:100;background:rgba(238,240,243,.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;text-align:center;opacity:0;visibility:hidden;transition:opacity .45s ease,visibility 0s linear .45s}
+.loader.show{opacity:1;visibility:visible;transition:opacity .45s ease,visibility 0s}
+.spinner{width:60px;height:60px;border-radius:50%;border:4px solid var(--surface);border-top-color:var(--accent);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader .lt{font-family:var(--font-display);font-weight:600;font-size:30px;letter-spacing:-.035em}
+.loader .lt b{color:var(--accent);font-weight:600}
+.loader .ls{font-family:var(--font-mono);font-size:13.5px;color:var(--muted);min-height:1.5em}
+.lbar{width:min(280px,70vw);height:4px;background:var(--surface);border-radius:2px;overflow:hidden}
+.lbar i{display:block;height:100%;width:0;background:var(--accent)}
 
 /* responsive */
-@media (max-width:980px){
-  .workloads{grid-template-columns:1fr 1fr}
-  .toolbar .wrap{grid-template-columns:1fr 1fr}
-  .runcol{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;align-items:center}
-  .runcol .run{flex:1;min-width:160px}
-  #pausedBox{flex:1 1 100%}
-  .kpis{grid-template-columns:1fr 1fr}
+@media (min-width:1101px){
+  .run-box{position:sticky;bottom:0;z-index:2;box-shadow:0 -14px 18px -14px rgba(11,12,14,.22)}
+}
+@media (max-width:1100px){
+  .app{grid-template-columns:minmax(0,1fr);gap:22px}
+  .side{position:static;max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  .side>.box:first-child{grid-column:1 / -1}
+  .workloads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:760px){
-  .charts{grid-template-columns:1fr}
+  .charts{grid-template-columns:minmax(0,1fr)}
 }
-@media (max-width:600px){
-  .toolbar .wrap{grid-template-columns:1fr}
-  .pods{grid-template-columns:1fr}
-  .pcol+.pcol{border-left:0;border-top:1px solid var(--border)}
-  .seg{display:flex;width:100%}
-  .seg button{flex:1;padding:8px 4px}
-  .cbox{height:200px}
+@media (max-width:640px){
+  .wrap{padding:0 16px}
+  .side{grid-template-columns:minmax(0,1fr)}
+  .workloads{grid-template-columns:minmax(0,1fr)}
+  .pods{grid-template-columns:minmax(0,1fr)}
+  .pcol+.pcol{border-left:0;border-top:1px solid var(--line)}
+  .cbox{height:210px}
+  .brand{font-size:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation-duration:.01ms!important}
+  .spinner{animation:none}
 }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="wrap">
-    <div class="brand"><b>PSE</b><span>Simulator</span></div>
+<header class="top">
+  <div class="wrap bar">
+    <div class="brand"><i></i>PSE <span>Simulator</span></div>
     <div class="badges">
       <div class="badge ok">PSE ACTIVE</div>
       <div class="badge lag" id="lagBadge">HPA LAG: 0s</div>
@@ -188,14 +222,14 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
   </div>
 </header>
 
-<div class="wrap">
-  <div class="sec-label">Workload</div>
-  <div class="workloads" id="workloads" role="group" aria-label="Workload"></div>
-</div>
+<div class="wrap app">
+  <aside class="side" aria-label="Simulation controls">
+    <section class="box">
+      <div class="sec-label">Workload</div>
+      <div class="workloads" id="workloads" role="group" aria-label="Workload"></div>
+    </section>
 
-<div class="toolbar">
-  <div class="wrap">
-    <div class="tgroup">
+    <section class="box">
       <div class="tlabel">Intensity</div>
       <div class="seg mode" id="modeSeg">
         <button type="button" data-mode="preset" class="on" data-lock>Preset levels</button>
@@ -215,10 +249,8 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
           <span class="readout" id="readout">Intensity: 50%</span>
         </div>
       </div>
-    </div>
 
-    <div class="tgroup">
-      <div class="tlabel">Run duration</div>
+      <div class="tlabel t2">Run duration</div>
       <div class="pills" id="durPills">
         <button type="button" class="pill on" data-d="10" data-lock>10 min</button>
         <button type="button" class="pill" data-d="15" data-lock>15 min</button>
@@ -226,9 +258,9 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
         <button type="button" class="pill" data-d="inf" data-lock>&infin; Infinite</button>
       </div>
       <div class="hint" id="durHint">Real-time playback: this run takes 10 minutes.</div>
-    </div>
+    </section>
 
-    <div class="runcol">
+    <section class="box run-box">
       <button type="button" class="run" id="runBtn">&#9654; Run Simulation</button>
       <div class="clock" id="clock">00:00</div>
       <div class="progress" id="progress"><i id="progressFill"></i></div>
@@ -239,53 +271,58 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
           <button type="button" id="expPdf">&darr; PDF</button>
         </div>
       </div>
-    </div>
-  </div>
-</div>
+    </section>
+  </aside>
 
-<div class="wrap">
-  <div class="sec-label">Key metrics</div>
-  <div class="kpis">
-    <div class="kpi"><h4>SLO Violation Rate</h4>
-      <div class="row"><small>HPA</small><b class="bad" id="kSloH">0.0%</b></div>
-      <div class="row"><small>PSE</small><b class="good" id="kSloP">0.0%</b></div>
-      <div class="note">requests over SLO</div></div>
-    <div class="kpi"><h4>P99 Latency Peak</h4>
-      <div class="row"><small>HPA</small><b class="bad" id="kP99H">&mdash;</b></div>
-      <div class="row"><small>PSE</small><b class="good" id="kP99P">&mdash;</b></div>
-      <div class="note">SLO threshold 200ms</div></div>
-    <div class="kpi"><h4>Pods Provisioned</h4>
-      <div class="row"><small>HPA</small><b class="bad" id="kPodH">&mdash;</b></div>
-      <div class="row"><small>PSE</small><b class="good" id="kPodP">&mdash;</b></div>
-      <div class="note">peak pod count</div></div>
-    <div class="kpi"><h4>Resource Efficiency</h4>
-      <div class="row"><small>PSE vs HPA</small><b class="amb" id="kEff">&mdash;</b></div>
-      <div class="note">pod-seconds saved</div></div>
-  </div>
-
-  <div class="sec-label">Autoscaler activity</div>
-  <div class="pods">
-    <div class="pcol h"><h4>HPA</h4>
-      <div class="pr"><span>Pods active</span><span id="hPods">&mdash;</span></div>
-      <div class="pr"><span>Scaling</span><span id="hScale" class="hold">&mdash;</span></div>
-      <div class="pr"><span>Decision</span><span id="hDec">&mdash;</span></div>
-      <div class="pr"><span>Lag</span><span id="hLag">&mdash;</span></div>
+  <main class="main">
+    <div class="intro">
+      <h1>PSE scales ahead of demand. HPA reacts late.</h1>
+      <p>A live comparison of the Predictive Scaling Engine and the Kubernetes Horizontal Pod Autoscaler under the same traffic. Pick a workload, set the load, press Run.</p>
     </div>
-    <div class="pcol p"><h4>PSE</h4>
-      <div class="pr"><span>Pods active</span><span id="pPods">&mdash;</span></div>
-      <div class="pr"><span>Scaling</span><span id="pScale" class="hold">&mdash;</span></div>
-      <div class="pr"><span>Decision</span><span id="pDec">&mdash;</span></div>
-      <div class="pr"><span>Lead time</span><span id="pLead">&mdash;</span></div>
-    </div>
-  </div>
 
-  <div class="sec-label">Live telemetry</div>
-  <div class="charts">
-    <div class="panel"><h4>Request rate (RPS)</h4><div class="cbox"><canvas id="c1"></canvas></div></div>
-    <div class="panel"><h4>Replicas</h4><div class="cbox"><canvas id="c2"></canvas></div></div>
-    <div class="panel"><h4>P99 latency (ms)</h4><div class="cbox"><canvas id="c3"></canvas></div></div>
-    <div class="panel"><h4>Cumulative SLO violations</h4><div class="cbox"><canvas id="c4"></canvas></div></div>
-  </div>
+    <div class="sec-label">Key metrics</div>
+    <div class="kpis">
+      <div class="kpi"><h4>SLO Violation Rate</h4>
+        <div class="row"><small>HPA</small><b class="bad" id="kSloH">0.0%</b></div>
+        <div class="row"><small>PSE</small><b class="good" id="kSloP">0.0%</b></div>
+        <div class="note">requests over SLO</div></div>
+      <div class="kpi"><h4>P99 Latency Peak</h4>
+        <div class="row"><small>HPA</small><b class="bad" id="kP99H">&mdash;</b></div>
+        <div class="row"><small>PSE</small><b class="good" id="kP99P">&mdash;</b></div>
+        <div class="note">SLO threshold 200ms</div></div>
+      <div class="kpi"><h4>Pods Provisioned</h4>
+        <div class="row"><small>HPA</small><b class="bad" id="kPodH">&mdash;</b></div>
+        <div class="row"><small>PSE</small><b class="good" id="kPodP">&mdash;</b></div>
+        <div class="note">peak pod count</div></div>
+      <div class="kpi"><h4>Resource Efficiency</h4>
+        <div class="row"><small>PSE vs HPA</small><b class="amb" id="kEff">&mdash;</b></div>
+        <div class="note">pod-seconds saved</div></div>
+    </div>
+
+    <div class="sec-label">Autoscaler activity</div>
+    <div class="pods">
+      <div class="pcol h"><h4>HPA</h4>
+        <div class="pr"><span>Pods active</span><span id="hPods">&mdash;</span></div>
+        <div class="pr"><span>Scaling</span><span id="hScale" class="hold">&mdash;</span></div>
+        <div class="pr"><span>Decision</span><span id="hDec">&mdash;</span></div>
+        <div class="pr"><span>Lag</span><span id="hLag">&mdash;</span></div>
+      </div>
+      <div class="pcol p"><h4>PSE</h4>
+        <div class="pr"><span>Pods active</span><span id="pPods">&mdash;</span></div>
+        <div class="pr"><span>Scaling</span><span id="pScale" class="hold">&mdash;</span></div>
+        <div class="pr"><span>Decision</span><span id="pDec">&mdash;</span></div>
+        <div class="pr"><span>Lead time</span><span id="pLead">&mdash;</span></div>
+      </div>
+    </div>
+
+    <div class="sec-label">Live telemetry</div>
+    <div class="charts">
+      <div class="panel"><h4>Request rate (RPS)</h4><div class="cbox"><canvas id="c1"></canvas></div></div>
+      <div class="panel"><h4>Replicas</h4><div class="cbox"><canvas id="c2"></canvas></div></div>
+      <div class="panel"><h4>P99 latency (ms)</h4><div class="cbox"><canvas id="c3"></canvas></div></div>
+      <div class="panel"><h4>Cumulative SLO violations</h4><div class="cbox"><canvas id="c4"></canvas></div></div>
+    </div>
+  </main>
 </div>
 
 <div class="focus" id="focus" hidden role="dialog" aria-modal="true" aria-labelledby="fTitle">
@@ -308,10 +345,10 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
 
 <div class="overlay" id="summary" hidden role="dialog" aria-modal="true" aria-labelledby="sumTitle">
   <div class="modal">
-    <header>
+    <div class="mhead">
       <h2 id="sumTitle">Simulation Complete</h2>
       <div class="sub" id="sumSub"></div>
-    </header>
+    </div>
     <table>
       <thead><tr><th>Metric</th><th>HPA</th><th>PSE</th></tr></thead>
       <tbody id="sumBody"></tbody>
@@ -443,7 +480,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
 
   /* ---------- charts ---------- */
   var CH = { labels: [], rps: [], hpaP: [], pseP: [], hpaL: [], pseL: [], slo: [], hpaV: [], pseV: [] };
-  var COL = { rps: '#b8a888', hpa: '#c0392b', pse: '#c8832a', good: '#27795a', slo: '#c8832a' };
+  var COL = { rps: '#8a93a3', hpa: '#d2402e', pse: '#1f2de6', good: '#1f2de6', slo: '#b7791f' };
   var charts = [];
 
   function mkChart(id, datasets, yOpts, legendTips) {
@@ -456,12 +493,12 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
         interaction: { mode: 'index', intersect: false },
         plugins: {
           title: { display: false },
-          legend: { position: 'top', align: 'end', onHover: function (e, item) { var t = legendTips && legendTips[item.text]; if (t) showTipAt(t, e.native.clientX, e.native.clientY); }, onLeave: function () { hideTip(); }, onClick: function () {}, labels: { boxWidth: 16, boxHeight: 2, padding: 10, color: '#7a6548', font: { family: "'IBM Plex Mono', monospace", size: 12 } } },
-          tooltip: { titleFont: { family: "'IBM Plex Mono', monospace", size: 13 }, bodyFont: { family: "'IBM Plex Mono', monospace", size: 13 } }
+          legend: { position: 'top', align: 'end', onHover: function (e, item) { var t = legendTips && legendTips[item.text]; if (t) showTipAt(t, e.native.clientX, e.native.clientY); }, onLeave: function () { hideTip(); }, onClick: function () {}, labels: { boxWidth: 16, boxHeight: 2, padding: 10, color: '#5d6470', font: { family: "'Geist Mono', monospace", size: 12 } } },
+          tooltip: { titleFont: { family: "'Geist Mono', monospace", size: 13 }, bodyFont: { family: "'Geist Mono', monospace", size: 13 } }
         },
         scales: {
-          x: { grid: { color: '#e8dcc8' }, ticks: { color: '#a09080', maxTicksLimit: 6, maxRotation: 0, autoSkip: true, font: { family: "'IBM Plex Mono', monospace", size: 12 } } },
-          y: Object.assign({ beginAtZero: true, grid: { color: '#e8dcc8' }, ticks: { color: '#a09080', font: { family: "'IBM Plex Mono', monospace", size: 12 } } }, yOpts || {})
+          x: { grid: { color: '#dfe3e9' }, ticks: { color: '#8a93a3', maxTicksLimit: 6, maxRotation: 0, autoSkip: true, font: { family: "'Geist Mono', monospace", size: 12 } } },
+          y: Object.assign({ beginAtZero: true, grid: { color: '#dfe3e9' }, ticks: { color: '#8a93a3', font: { family: "'Geist Mono', monospace", size: 12 } } }, yOpts || {})
         }
       }
     });
@@ -472,7 +509,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
   function ds(label, data, color, extra) {
     return Object.assign({ label: label, data: data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, tension: 0.4, cubicInterpolationMode: 'monotone', fill: false }, extra || {});
   }
-  var chRps = mkChart('c1', [ds('RPS', CH.rps, COL.rps, { backgroundColor: 'rgba(184,168,136,.18)', fill: true })], { suggestedMax: 600 },
+  var chRps = mkChart('c1', [ds('RPS', CH.rps, COL.rps, { backgroundColor: 'rgba(138,147,163,.16)', fill: true })], { suggestedMax: 600 },
     { 'RPS': 'Requests per second arriving at the service: the demand both autoscalers must serve.' });
   mkChart('c2', [ds('HPA', CH.hpaP, COL.hpa, { borderDash: [6, 4] }), ds('PSE', CH.pseP, COL.pse)], { min: 0, max: 24 },
     { 'HPA': 'Pods the reactive HPA is running. It scales only after thresholds breach, so this line trails demand and holds extra pods afterwards.',
@@ -884,9 +921,9 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
     var L = 12, R = 2, T = 7, B = 7, px = x + L, py = y + T, pw = w - L - R, ph = h - T - B;
     var ys = chart.scales.y, ymin = ys.min, ymax = ys.max, span = (ymax - ymin) || 1;
     var hex = function (c) { var m = /^#?([0-9a-f]{6})$/i.exec(c || ''); var n = m ? parseInt(m[1], 16) : 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-    doc.setFillColor(250, 246, 239); doc.rect(x, y, w, h, 'F');
+    doc.setFillColor(248, 249, 251); doc.rect(x, y, w, h, 'F');
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5);
-    doc.setLineWidth(0.15); doc.setDrawColor(232, 220, 200); doc.setTextColor(160, 144, 128);
+    doc.setLineWidth(0.15); doc.setDrawColor(223, 227, 233); doc.setTextColor(138, 147, 163);
     ys.ticks.forEach(function (t) {
       if (t.value < ymin || t.value > ymax) return;
       var yy = py + ph - (t.value - ymin) / span * ph;
@@ -901,7 +938,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
         doc.text(String(labels[idx]), xx, py + ph + 4, { align: j === 0 ? 'left' : (j === k - 1 ? 'right' : 'center') });
       }
     }
-    doc.setDrawColor(200, 185, 160); doc.setLineWidth(0.2); doc.rect(px, py, pw, ph, 'S');
+    doc.setDrawColor(190, 196, 206); doc.setLineWidth(0.2); doc.rect(px, py, pw, ph, 'S');
     chart.data.datasets.forEach(function (d) {
       var data = d.data; if (!data || data.length < 2) return;
       var rgb = hex(d.borderColor), pts = data.map(function (v, i) {
@@ -918,7 +955,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
     doc.setFontSize(6.5);
     chart.data.datasets.slice().reverse().forEach(function (d) {
       var rgb = hex(d.borderColor), tw = doc.getTextWidth(d.label);
-      doc.setTextColor(90, 65, 40); doc.text(d.label, lx, y + 3.6, { align: 'right' });
+      doc.setTextColor(93, 100, 112); doc.text(d.label, lx, y + 3.6, { align: 'right' });
       doc.setDrawColor(rgb[0], rgb[1], rgb[2]); doc.setLineWidth(0.4);
       doc.setLineDashPattern(d.borderDash && d.borderDash.length ? [1.2, 0.8] : [], 0);
       doc.line(lx - tw - 5.5, y + 3, lx - tw - 1.5, y + 3);
@@ -932,15 +969,15 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
     if (!window.jspdf) { alert('The PDF library could not be loaded (check your internet connection). Use the CSV export instead.'); return; }
     var r = buildResults(S.done), doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
     var W = 210, M = 14, y;
-    doc.setFillColor(45, 32, 22); doc.rect(0, 0, W, 22, 'F');
+    doc.setFillColor(11, 12, 14); doc.rect(0, 0, W, 22, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(20);
-    doc.setTextColor(200, 131, 42); doc.text('PSE', M, 14.5);
-    doc.setTextColor(245, 236, 216); doc.text('Simulator', M + 15, 14.5);
+    doc.setTextColor(150, 158, 255); doc.text('PSE', M, 14.5);
+    doc.setTextColor(238, 240, 243); doc.text('Simulator', M + 15, 14.5);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
     doc.text('PSE vs HPA autoscaling simulation report', W - M, 14, { align: 'right' });
-    doc.setTextColor(45, 26, 0); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+    doc.setTextColor(11, 12, 14); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
     doc.text(r.workload + (r.completed ? '' : '  (stopped early)'), M, 33);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(122, 101, 72);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(93, 100, 112);
     doc.text('Intensity ' + r.intensity + '%  |  Duration ' + r.duration + '  |  Seed ' + r.seed + '  |  ' + new Date().toLocaleString(), M, 39);
 
     var rows = [
@@ -951,16 +988,16 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
       ['Resource saved by PSE', '-', '+' + r.resourceSavedPct + '%']
     ];
     y = 48;
-    doc.setFillColor(240, 232, 216); doc.rect(M, y - 5, W - 2 * M, 8, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0);
+    doc.setFillColor(226, 229, 234); doc.rect(M, y - 5, W - 2 * M, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(11, 12, 14);
     doc.text('Metric', M + 2, y); doc.text('HPA', 130, y, { align: 'right' }); doc.text('PSE', W - M - 2, y, { align: 'right' });
     y += 8; doc.setFontSize(11);
     rows.forEach(function (row) {
-      doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 65, 40); doc.text(row[0], M + 2, y);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(93, 100, 112); doc.text(row[0], M + 2, y);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(192, 57, 43); doc.text(row[1], 130, y, { align: 'right' });
-      doc.setTextColor(39, 121, 90); doc.text(row[2], W - M - 2, y, { align: 'right' });
-      doc.setDrawColor(224, 213, 196); doc.line(M, y + 2.5, W - M, y + 2.5);
+      doc.setTextColor(210, 64, 46); doc.text(row[1], 130, y, { align: 'right' });
+      doc.setTextColor(31, 45, 230); doc.text(row[2], W - M - 2, y, { align: 'right' });
+      doc.setDrawColor(223, 227, 233); doc.line(M, y + 2.5, W - M, y + 2.5);
       y += 8;
     });
     y += 2;
@@ -968,9 +1005,9 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(31, 94, 68);
     doc.text('PSE reduced SLO violations by ' + r.sloReductionPct + '%', M + 3, y + 1);
     y += 11;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0); doc.text('What these results mean', M, y);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(11, 12, 14); doc.text('What these results mean', M, y);
     y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(70, 50, 30);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(60, 66, 76);
     var ex = doc.splitTextToSize(buildExplanation(r), W - 2 * M);
     doc.text(ex, M, y);
     y += ex.length * 3.7 + 6;
@@ -980,7 +1017,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
       var x = M + (i % 2) * (cw + 6);
       if (i % 2 === 0 && i > 0) y += ch + 10;
       if (i % 2 === 0 && y + ch + 8 > 287) { doc.addPage(); y = 16; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(45, 26, 0); doc.text(title, x, y);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(11, 12, 14); doc.text(title, x, y);
       drawVectorChart(doc, charts[i], x, y + 2, cw, ch);
     });
     doc.save(fileStem() + '.pdf');
@@ -1025,7 +1062,7 @@ h4[data-tip]::after,.tlabel[data-tip]::after{content:" \24D8";font-size:.7em;col
     $('focus').hidden = false;
     hideTip();
     focusChart = mkChart('fCanvas', def.datasets.map(function (d) { return Object.assign({}, d, { borderWidth: (d.borderWidth || 2) + 0.7 }); }), y, def.legendTips);
-    var o = focusChart.options, f = "'IBM Plex Mono', monospace";
+    var o = focusChart.options, f = "'Geist Mono', monospace";
     o.scales.x.ticks.font = { family: f, size: 14 }; o.scales.x.ticks.maxTicksLimit = 10;
     o.scales.y.ticks.font = { family: f, size: 14 };
     o.plugins.legend.labels.font = { family: f, size: 14 };
